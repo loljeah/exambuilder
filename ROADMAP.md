@@ -366,7 +366,7 @@ debt_warning_at = 7         # warn when approaching threshold
 theme = "system"  # system | dark | light
 
 [grading]
-pass_threshold = 70
+pass_threshold = 60
 streak_bonus_at = 3
 show_hints_on_fail = 1  # which attempt to show hints
 show_answers_on_fail = 2  # which attempt to show answers

@@ -74,12 +74,13 @@ Read `.claude/skills/teachANDexam/SKILL.md` for full spec.
 
 These rules override all defaults:
 
-- **SPRINTS not exams**: 2-3 questions per sprint, one topic, 3-5 min target
+- **SPRINTS not exams**: 3 questions per sprint, one topic, 3-5 min target
 - **Easy then challenge** difficulty rhythm per sprint (2Q: easy→hard, 3Q: easy→medium→boss)
-- **70% pass per sprint** (not 80% — reduces perfectionism paralysis)
+- **60% pass per sprint** (2/3 correct — achievable, not trivial)
 - **Unlimited retakes**, best score counts
 - **Partial progress saves** — sprints are independent
 - **One question = one concept** — never stack concepts
+- **No config lookups** — never ask "what port/VLAN/ID is X" (that's grep, not knowledge)
 - **Max 8 lines of code** per snippet
 - **Questions must fit on one screen** — if it scrolls, shorten it
 - **No "all of the above"** — causes decision paralysis
@@ -103,10 +104,10 @@ When developer provides answers:
 1. Grade the sprint (one sprint at a time, not whole exam)
 2. Score MC as correct/incorrect, open-ended on 3-point scale
 3. Calculate sprint percentage
-4. If >= 70%: mark sprint ✓ PASSED, award XP, bump streak
-5. If < 70%, 1st attempt: show which Qs wrong + HINTS only, encourage retry
-6. If < 70%, 2nd attempt: show full answers + explanations, unlock study resources
-7. If < 70%, 3rd+: answers stay visible, keep encouraging, no guilt
+4. If >= 60% (2/3): mark sprint ✓ PASSED, award XP, bump streak
+5. If < 60%, 1st attempt: show which Qs wrong + HINTS only, encourage retry
+6. If < 60%, 2nd attempt: show full answers + explanations, unlock study resources
+7. If < 60%, 3rd+: answers stay visible, keep encouraging, no guilt
 8. All sprints passed → gate status = ✓ CLEARED
 9. New milestone → append sprint(s), gate resets to ⚠️ BLOCKING
 

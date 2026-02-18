@@ -35,7 +35,7 @@ Wall of text → shutdown         → Max 5 questions per sprint
 Delayed reward → no motivation  → Instant score after each sprint
 Boring = invisible              → Scenario-based, real project context
 Time blindness                  → Timed sprints (5-8 min each)
-Perfectionism paralysis         → 70% pass, partial credit, retakes welcome
+Perfectionism paralysis         → 60% pass, partial credit, retakes welcome
 Overwhelm from big exams        → Small progressive sprints, not one big test
 Loss of momentum after failure  → "Streak" system, celebrate progress not perfection
 Context switching cost           → Each sprint is ONE topic, ONE focus
@@ -153,7 +153,7 @@ Every sprint includes answers with:
 # 🎯 Exam: <ProjectName>
 # Generated: <ISO-8601>
 # Total Sprints: <N>
-# Pass: 70% per sprint | Retakes: unlimited
+# Pass: 60% per sprint | Retakes: unlimited
 # Voice-Ready: yes
 
 ---
@@ -176,7 +176,7 @@ Every sprint includes answers with:
 ---
 
 ## Sprint 1: <Topic Name>
-⏱️ Target: 3 min | 🎯 Pass: 70% | ⚡ 30 XP
+⏱️ Target: 3 min | 🎯 Pass: 60% | ⚡ 30 XP
 🎙️ Voice-compatible: yes
 
 ### Q1. [RECALL] ⭐ Easy — 10 XP
@@ -200,7 +200,7 @@ Given this from `configuration.nix`:
 ---
 
 ## Sprint 2: <Next Topic>
-⏱️ Target: 3 min | 🎯 Pass: 70% | ⚡ 25 XP
+⏱️ Target: 3 min | 🎯 Pass: 60% | ⚡ 25 XP
 🎙️ Voice-compatible: yes
 
 ### Q1. [RECALL] ⭐ Easy — 10 XP
@@ -258,25 +258,29 @@ genuine engagement.
 
 ### Content Rules
 1. **No trivia** — every question tests knowledge needed to operate this project
-2. **Use real project content** — actual config snippets, file paths, service names
-3. **Max 8 lines of code** in any snippet — trim to the relevant part
-4. **Scenario > recall** — prefer "what happens when" over "what is"
-5. **Plausible wrong answers** — not obviously wrong, test real understanding
-6. **Test the WHY** — "why X instead of Y" beats "what is X"
+2. **No hardcoded config lookups** — never ask "what VLAN ID is X" or "what port does Y use"
+   - These are just grep exercises, not understanding
+   - BAD: "What VLAN ID is assigned to the IoT network?"
+   - GOOD: "Why are IoT devices isolated from workstations?"
+3. **Use real project content** — actual config snippets, file paths, service names
+4. **Max 8 lines of code** in any snippet — trim to the relevant part
+5. **Scenario > recall** — prefer "what happens when" over "what is"
+6. **Plausible wrong answers** — not obviously wrong, test real understanding
+7. **Test the WHY** — "why X instead of Y" beats "what is X"
 
 ### ADHD-Specific Rules
-7. **One question = one concept** — never combine multiple concepts in one Q
-8. **Questions must fit on one screen** — if you have to scroll, it's too long
-9. **Start each sprint with a confidence builder** — Q1 should be achievable
-10. **No "all of the above" or "none of the above"** — these cause decision paralysis
-11. **Bold the key action word** in each question stem
-12. **Code snippets max 5-8 lines** — highlight the relevant line if possible
-13. **Vary question format** within a sprint — MC, fill-blank, scenario, true/false
+8. **One question = one concept** — never combine multiple concepts in one Q
+9. **Questions must fit on one screen** — if you have to scroll, it's too long
+10. **Start each sprint with a confidence builder** — Q1 should be achievable
+11. **No "all of the above" or "none of the above"** — these cause decision paralysis
+12. **Bold the key action word** in each question stem
+13. **Code snippets max 5-8 lines** — highlight the relevant line if possible
+14. **Vary question format** within a sprint — MC, fill-blank, scenario, true/false
 
 ### Mandatory Topics
-14. **Every exam must include security** — at least 1 sprint or 2+ questions
-15. **Every exam must include debugging** — at least 1 scenario question
-16. **NixOS projects must cover**: nix language basics, module system, rebuild commands, generation management
+15. **Every exam must include security** — at least 1 sprint or 2+ questions
+16. **Every exam must include debugging** — at least 1 scenario question
+17. **NixOS projects must cover**: nix language basics, module system, rebuild commands, generation management
 
 ---
 
@@ -302,7 +306,7 @@ easier questions. Tier 4-5 reward extra depth.
 | 0 — Wrong | Incorrect or blank | 0% |
 
 ### Passing
-- **70% per sprint** to pass that sprint
+- **60% per sprint** to pass that sprint
 - **Security floor**: must score >0 on every security question
 - **All sprints passed** = gate opens
 - **Retakes unlimited** — best score counts
@@ -310,7 +314,7 @@ easier questions. Tier 4-5 reward extra depth.
 
 ### Failure Flow (Progressive Reveal)
 ```
-1st attempt, failed (<70%):
+1st attempt, failed (<60%):
   → Show WHICH questions were wrong
   → Show HINT per wrong question (nudge toward the answer, don't give it)
   → "1/3 on Sprint 2. Hint: Q2 — think about which interface is tagged. Retry?"
@@ -359,7 +363,7 @@ LLM grades answer against answer key
   ↓
 App speaks result: "Correct! 10 XP. Next question..."
   ↓
-After sprint: "Sprint 1 done. 2 out of 3. 70% — you passed! 
+After sprint: "Sprint 1 done. 2 out of 3. 60% — you passed! 
               Sprint 2 when you're ready."
 ```
 
@@ -404,9 +408,9 @@ fi
 1. Detect new project → generate exam with initial sprints
 2. Store as `exam_<ProjectName>.md` in project root
 3. When developer provides answers → grade sprint, update dashboard
-4. Score >= 70% per sprint → mark sprint ✓ PASSED
+4. Score >= 60% per sprint → mark sprint ✓ PASSED
 5. All sprints passed → change gate to ✓ CLEARED
-6. Score < 70% → reveal study resources for weak areas, encourage retake
+6. Score < 60% → reveal study resources for weak areas, encourage retake
 7. New milestone → append new sprint(s), gate resets to ⚠️ BLOCKING
 
 ### Future: Voice Exam App
@@ -419,7 +423,7 @@ including voice-only mode, multiplayer/accountability, and parsing spec.
 ## Example: NixOS + MikroTik Project
 
 ### Sprint 1: NixOS Fundamentals
-⏱️ 3 min | 🎯 70% | ⚡ 30 XP | 🎙️ Voice-compatible
+⏱️ 3 min | 🎯 60% | ⚡ 30 XP | 🎙️ Voice-compatible
 
 **Q1. [RECALL] ⭐ — 10 XP**
 Which command **rebuilds** NixOS and switches to the new config
@@ -442,7 +446,7 @@ System won't boot after bad rebuild. You're at the console.
 ---
 
 ### Sprint 2: Network — VLANs
-⏱️ 3 min | 🎯 70% | ⚡ 20 XP | 🎙️ Voice-compatible
+⏱️ 3 min | 🎯 60% | ⚡ 20 XP | 🎙️ Voice-compatible
 
 **Q1. [RECALL] ⭐ — 10 XP**
 In this project, what VLAN ID is assigned to the **IoT network**?

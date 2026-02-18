@@ -65,7 +65,7 @@ debt_warning_at = 7
 theme = "system"
 
 [grading]
-pass_threshold = 70
+pass_threshold = 60
 streak_bonus_at = 3
 show_hints_on_fail = 1
 show_answers_on_fail = 2
