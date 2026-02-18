@@ -2,10 +2,12 @@
 
 ## Build Order
 
-**CLI FIRST.** Everything else wraps around it.
+**CLI FIRST. VOICE FIRST.**
+
+Text walls are the enemy. Exams must be speakable and hearable.
 
 ```
-Phase 1: CLI (kgate)
+Phase 1: CLI (kgate) with VOICE
     ↓
 Phase 2: Core library (shared logic)
     ↓
@@ -44,12 +46,16 @@ exambuilder/
 │   │   │   │   ├── parser.rs
 │   │   │   │   ├── grader.rs
 │   │   │   │   └── generator.rs
-│   │   │   └── gamification/
+│   │   │   ├── gamification/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── xp.rs
+│   │   │   │   ├── levels.rs
+│   │   │   │   ├── streaks.rs
+│   │   │   │   └── badges.rs
+│   │   │   └── voice/
 │   │   │       ├── mod.rs
-│   │   │       ├── xp.rs
-│   │   │       ├── levels.rs
-│   │   │       ├── streaks.rs
-│   │   │       └── badges.rs
+│   │   │       ├── tts.rs        # Text-to-speech
+│   │   │       └── stt.rs        # Speech-to-text
 │   │   └── Cargo.toml
 │   └── kgate-daemon/          # File watcher daemon
 │       ├── src/
@@ -105,19 +111,43 @@ kgate project info [hash]      # Show project details
 ```
 kgate exam list                # List sprints for active project
 kgate exam show <sprint>       # Show questions for a sprint
-kgate exam take <sprint>       # Interactive exam mode
+kgate exam take <sprint>       # Interactive exam mode (TEXT)
+kgate exam voice <sprint>      # Voice exam mode (DEFAULT)
 kgate exam answer <sprint> <answers...>  # Submit answers directly
 kgate exam grade <sprint>      # Show results for a sprint
 ```
 
-### 1.4 — Profile Commands
+### 1.4 — Voice Commands
+```
+kgate voice                    # Start voice exam for next pending sprint
+kgate voice <sprint>           # Voice exam for specific sprint
+kgate voice --tts-only         # TTS reads, you type answers
+kgate voice --stt-only         # You read, speak answers
+```
+
+**Voice exam flow:**
+```
+🔊 "Sprint 1: NixOS Basics. Question 1."
+🔊 "Which command rebuilds NixOS without adding a boot entry?"
+🔊 "A: nixos-rebuild switch"
+🔊 "B: nixos-rebuild test"
+🔊 "C: nixos-rebuild boot"
+🔊 "D: nixos-rebuild dry-activate"
+🔊 "Your answer?"
+
+🎤 "B"
+
+🔊 "Correct! 10 XP. Question 2..."
+```
+
+### 1.5 — Profile Commands
 ```
 kgate profile                  # Show XP, level, streak, badges
 kgate profile history          # Recent activity
 kgate profile export           # Export to JSON
 ```
 
-### 1.5 — Parse Commands
+### 1.6 — Parse Commands
 ```
 kgate parse knowledge <file>   # Parse KNOWLEDGE_*.md, show debt items
 kgate parse qa <file>          # Parse QA_*.md, show quiz bank
@@ -215,6 +245,50 @@ pub fn calculate_level(xp: i32) -> i32
 pub fn xp_for_level(level: i32) -> i32
 pub fn check_badge_unlocks(profile: &Profile, event: &str) -> Vec<Badge>
 pub fn update_streak(current: i32, passed: bool) -> i32
+```
+
+### 2.6 — Voice Engine
+
+```rust
+// tts.rs — Text-to-Speech
+pub trait TTS {
+    fn speak(&self, text: &str) -> Result<()>;
+    fn speak_question(&self, q: &Question) -> Result<()>;
+    fn speak_result(&self, correct: bool, xp: i32) -> Result<()>;
+}
+
+pub struct PiperTTS { voice: String, speed: f32 }
+pub struct EspeakTTS { voice: String, speed: i32 }
+
+// stt.rs — Speech-to-Text
+pub trait STT {
+    fn listen(&self) -> Result<String>;
+    fn listen_for_letter(&self) -> Result<char>;  // A, B, C, D
+}
+
+pub struct WhisperSTT { model: String }
+pub struct VoskSTT { model_path: PathBuf }
+
+// Voice exam runner
+pub struct VoiceExam {
+    tts: Box<dyn TTS>,
+    stt: Box<dyn STT>,
+}
+
+impl VoiceExam {
+    pub fn run_sprint(&self, sprint: &Sprint) -> Result<SprintResult>;
+}
+```
+
+**Voice flow:**
+```
+1. TTS speaks question + options
+2. STT listens for answer (letter or full text)
+3. Normalize answer ("bee" → "B", "option b" → "B")
+4. Grade immediately
+5. TTS speaks result + XP
+6. Repeat until sprint done
+7. TTS speaks sprint summary
 ```
 
 ---
@@ -404,10 +478,11 @@ Your answer: _
 | M3 | CLI skeleton | `kgate status` shows mock data |
 | M4 | Parsers | `kgate parse *` works on test files |
 | M5 | Grader | `kgate exam take` grades correctly |
-| M6 | Full CLI | All commands work end-to-end |
-| M7 | Daemon | File watcher updates DB on changes |
-| M8 | Tray app | Icon shows debt state |
-| M9 | MVP | Full loop works |
+| M6 | Voice | `kgate voice` speaks + listens |
+| M7 | Full CLI | All commands work end-to-end |
+| M8 | Daemon | File watcher updates DB on changes |
+| M9 | Tray app | Icon shows debt state |
+| M10 | MVP | Full loop works with voice |
 
 ---
 
@@ -424,6 +499,12 @@ chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
 thiserror = "1"
 
+# Voice
+tts = "0.26"                # Cross-platform TTS
+cpal = "0.15"               # Audio I/O
+whisper-rs = "0.11"         # Whisper STT bindings
+vosk = "0.2"                # Vosk STT (lighter alternative)
+
 # kgate/Cargo.toml
 [dependencies]
 kgate-core = { path = "../kgate-core" }
@@ -432,6 +513,7 @@ tokio = { version = "1", features = ["full"] }
 dialoguer = "0.11"          # Interactive prompts
 console = "0.15"            # Colors + styling
 indicatif = "0.17"          # Progress bars
+rodio = "0.17"              # Audio playback for sounds
 ```
 
 ---

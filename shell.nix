@@ -21,6 +21,13 @@ pkgs.mkShell {
     openssl
     pkg-config
 
+    # Voice/Audio deps
+    alsa-lib        # Linux audio
+    libpulseaudio   # PulseAudio
+    espeak-ng       # TTS fallback
+    piper-tts       # Neural TTS (if available)
+    vosk            # Offline STT
+
     # Dev tools
     watchexec       # File watcher
     just            # Task runner (like make)
@@ -29,15 +36,18 @@ pkgs.mkShell {
   # Help Rust find system libs
   SQLITE3_DIR = "${pkgs.sqlite.dev}";
   OPENSSL_DIR = "${pkgs.openssl.dev}";
-  PKG_CONFIG_PATH = "${pkgs.sqlite.dev}/lib/pkgconfig:${pkgs.openssl.dev}/lib/pkgconfig";
+  PKG_CONFIG_PATH = "${pkgs.sqlite.dev}/lib/pkgconfig:${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.alsa-lib.dev}/lib/pkgconfig";
+
+  # Audio libs
+  ALSA_PLUGIN_DIR = "${pkgs.alsa-plugins}/lib/alsa-lib";
 
   shellHook = ''
     echo ""
     echo "🦀 kgate dev environment"
-    echo "   cargo build    — compile"
-    echo "   cargo run      — run CLI"
-    echo "   cargo watch -x run — auto-rebuild"
-    echo "   sqlx migrate run — run DB migrations"
+    echo "   just build     — compile"
+    echo "   just run       — run CLI"
+    echo "   just voice     — test voice mode"
+    echo "   just dev       — auto-rebuild"
     echo ""
   '';
 }

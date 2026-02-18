@@ -15,6 +15,10 @@ release:
 run *args:
     cargo run -p kgate -- {{args}}
 
+# Run voice exam
+voice *args:
+    cargo run -p kgate -- voice {{args}}
+
 # Watch and rebuild on changes
 watch:
     cargo watch -x 'build'
