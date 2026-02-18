@@ -1,153 +1,310 @@
 # KnowledgeGATEunlocker — Development Plan
 
+## Build Order
+
+**CLI FIRST.** Everything else wraps around it.
+
+```
+Phase 1: CLI (kgate)
+    ↓
+Phase 2: Core library (shared logic)
+    ↓
+Phase 3: File watcher daemon
+    ↓
+Phase 4: Tauri tray app (uses library)
+    ↓
+Phase 5: Dashboard UI
+```
+
+---
+
 ## Project Structure
 
 ```
 exambuilder/
-├── src-tauri/                 # Rust backend
-│   ├── src/
-│   │   ├── main.rs           # Tauri entry point
-│   │   ├── lib.rs            # Library exports
-│   │   ├── db/
-│   │   │   ├── mod.rs
-│   │   │   ├── schema.rs     # SQLite schema
-│   │   │   ├── models.rs     # Data models
-│   │   │   └── queries.rs    # DB operations
-│   │   ├── debt/
-│   │   │   ├── mod.rs
-│   │   │   ├── tracker.rs    # Debt accumulation logic
-│   │   │   └── config.rs     # Debt weights/thresholds
-│   │   ├── exam/
-│   │   │   ├── mod.rs
-│   │   │   ├── parser.rs     # Parse EXAM_*.md files
-│   │   │   ├── grader.rs     # Grade answers
-│   │   │   └── generator.rs  # Assemble exams from QA
-│   │   ├── watcher/
-│   │   │   ├── mod.rs
-│   │   │   └── files.rs      # Watch KNOWLEDGE/QA/EXAM files
-│   │   ├── gamification/
-│   │   │   ├── mod.rs
-│   │   │   ├── xp.rs         # XP calculations
-│   │   │   ├── levels.rs     # Level thresholds
-│   │   │   ├── streaks.rs    # Streak tracking
-│   │   │   └── badges.rs     # Achievement definitions
-│   │   ├── tray/
-│   │   │   ├── mod.rs
-│   │   │   └── menu.rs       # System tray menu
-│   │   └── commands.rs       # Tauri IPC commands
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── src/                       # Frontend (Svelte/Vue/React)
-│   ├── App.svelte
-│   ├── components/
-│   │   ├── Dashboard.svelte
-│   │   ├── DebtMeter.svelte
-│   │   ├── SprintCard.svelte
-│   │   ├── XPBar.svelte
-│   │   └── BadgeGrid.svelte
-│   ├── stores/
-│   │   └── state.ts
-│   └── main.ts
-├── cli/                       # CLI tool (optional)
-│   ├── src/
-│   │   └── main.rs
-│   └── Cargo.toml
+├── crates/
+│   ├── kgate/                 # CLI binary — BUILD THIS FIRST
+│   │   ├── src/
+│   │   │   └── main.rs
+│   │   └── Cargo.toml
+│   ├── kgate-core/            # Shared library
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── db/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── schema.rs
+│   │   │   │   ├── models.rs
+│   │   │   │   └── queries.rs
+│   │   │   ├── debt/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── tracker.rs
+│   │   │   │   └── config.rs
+│   │   │   ├── exam/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── parser.rs
+│   │   │   │   ├── grader.rs
+│   │   │   │   └── generator.rs
+│   │   │   └── gamification/
+│   │   │       ├── mod.rs
+│   │   │       ├── xp.rs
+│   │   │       ├── levels.rs
+│   │   │       ├── streaks.rs
+│   │   │       └── badges.rs
+│   │   └── Cargo.toml
+│   └── kgate-daemon/          # File watcher daemon
+│       ├── src/
+│       │   └── main.rs
+│       └── Cargo.toml
+├── tauri-app/                 # Tray + UI (later)
+│   ├── src-tauri/
+│   └── src/
 ├── docs/
-│   ├── CLAUDE.md             # Claude rules (deployed to ~/.claude/)
-│   ├── SKILL.md              # Exam generation spec
-│   └── ROADMAP.md            # Feature roadmap
-├── deploy.sh
-├── shell.nix                 # NixOS dev environment
+│   ├── CLAUDE.md
+│   ├── SKILL.md
+│   └── ROADMAP.md
+├── migrations/                # SQLite migrations
+│   └── 001_initial.sql
+├── Cargo.toml                 # Workspace
+├── shell.nix
 ├── flake.nix
+├── deploy.sh
 └── README.md
 ```
 
 ---
 
-## Phase 0: Project Bootstrap
+## Phase 1: CLI (`kgate`)
 
-### 0.1 — Nix Development Environment
+### 1.0 — Project Setup
 ```
-[ ] Create shell.nix with:
-    - rustc, cargo, rust-analyzer
-    - nodejs, npm (for frontend)
-    - tauri-cli
-    - sqlite, sqlx-cli
-    - watchexec (for dev)
-[ ] Create flake.nix for reproducibility
-[ ] Test: `nix develop` drops into working env
+[ ] Create Cargo workspace
+[ ] Create kgate crate
+[ ] Create kgate-core crate
+[ ] shell.nix with rust toolchain
+[ ] Verify: cargo build works
 ```
 
-### 0.2 — Tauri Project Scaffold
+### 1.1 — Basic Commands
 ```
-[ ] cargo create-tauri-app exambuilder
-[ ] Choose frontend: Svelte (lightest) or vanilla
-[ ] Verify: `cargo tauri dev` opens window
-[ ] Add system tray capability in tauri.conf.json
+kgate init                     # Initialize DB + data dirs
+kgate status                   # Show debt, profile, active project
+kgate debt                     # Detailed debt breakdown
+kgate debt add <type> [desc]   # Manually add debt (for testing)
+kgate debt clear <amount>      # Manually clear debt (for testing)
 ```
 
-### 0.3 — SQLite Setup
+### 1.2 — Project Commands
 ```
-[ ] Add sqlx dependency (async, compile-time checked)
-[ ] Create initial schema (see below)
-[ ] Set up migrations directory
-[ ] Test: create DB, run migrations
+kgate project list             # List all tracked projects
+kgate project add <path>       # Register a project
+kgate project set <hash>       # Set active project
+kgate project info [hash]      # Show project details
+```
+
+### 1.3 — Exam Commands
+```
+kgate exam list                # List sprints for active project
+kgate exam show <sprint>       # Show questions for a sprint
+kgate exam take <sprint>       # Interactive exam mode
+kgate exam answer <sprint> <answers...>  # Submit answers directly
+kgate exam grade <sprint>      # Show results for a sprint
+```
+
+### 1.4 — Profile Commands
+```
+kgate profile                  # Show XP, level, streak, badges
+kgate profile history          # Recent activity
+kgate profile export           # Export to JSON
+```
+
+### 1.5 — Parse Commands
+```
+kgate parse knowledge <file>   # Parse KNOWLEDGE_*.md, show debt items
+kgate parse qa <file>          # Parse QA_*.md, show quiz bank
+kgate parse exam <file>        # Parse EXAM_*.md, import sprints
 ```
 
 ---
 
-## Phase 1: Core Data Layer
+## Phase 2: Core Library (`kgate-core`)
 
-### 1.1 — SQLite Schema
+### 2.1 — Database Layer
+
+```rust
+// models.rs
+pub struct Project { id, full_hash, path, name, created_at, last_active }
+pub struct DebtEntry { id, project_id, action, weight, description, timestamp }
+pub struct Sprint { id, project_id, number, topic, questions, status, ... }
+pub struct Profile { total_xp, level, streak, best_streak, sprints_passed }
+pub struct Badge { id, name, description, icon, rarity, unlocked_at }
+
+// queries.rs
+pub fn init_db(path: &Path) -> Result<SqlitePool>
+pub fn get_or_create_project(pool: &Pool, path: &str) -> Result<Project>
+pub fn add_debt(pool: &Pool, project_id: &str, action: &str, weight: i32) -> Result<()>
+pub fn get_debt(pool: &Pool, project_id: &str) -> Result<i32>
+pub fn clear_debt(pool: &Pool, project_id: &str, amount: i32) -> Result<()>
+pub fn upsert_sprint(pool: &Pool, sprint: &Sprint) -> Result<()>
+pub fn record_attempt(pool: &Pool, sprint_id: i32, score: i32) -> Result<AttemptResult>
+pub fn update_profile(pool: &Pool, xp: i32, streak_delta: i32) -> Result<Profile>
+pub fn unlock_badge(pool: &Pool, badge_id: &str) -> Result<()>
+```
+
+### 2.2 — Debt Tracker
+
+```rust
+pub struct DebtConfig {
+    pub threshold: i32,           // default 10
+    pub weights: HashMap<String, i32>,
+    pub clear_per_sprint: i32,    // default 3
+}
+
+pub fn calculate_debt_weight(action: &str, config: &DebtConfig) -> i32
+pub fn is_locked(debt: i32, config: &DebtConfig) -> bool
+pub fn debt_after_sprint(current: i32, config: &DebtConfig) -> i32
+```
+
+### 2.3 — Parsers
+
+```rust
+// KNOWLEDGE parser
+pub struct KnowledgeEntry { topic, timestamp, context, key_points, file_refs }
+pub fn parse_knowledge(content: &str) -> Result<Vec<KnowledgeEntry>>
+
+// QA parser
+pub struct QATranscript { question, answer, deep_dive }
+pub struct QuizQuestion { question, qtype, options, correct, catches }
+pub fn parse_qa(content: &str) -> Result<(Vec<QATranscript>, Vec<QuizQuestion>)>
+
+// EXAM parser
+pub struct ParsedSprint { number, topic, questions, answer_key }
+pub fn parse_exam(content: &str) -> Result<Vec<ParsedSprint>>
+```
+
+### 2.4 — Grader
+
+```rust
+pub enum Answer {
+    MC(char),                    // 'A', 'B', 'C', 'D'
+    Open(String),
+    CodeTrace(String),
+}
+
+pub struct GradeResult {
+    pub correct: bool,
+    pub xp_earned: i32,
+    pub feedback: String,
+}
+
+pub struct SprintResult {
+    pub passed: bool,
+    pub score_percent: i32,
+    pub total_xp: i32,
+    pub question_results: Vec<GradeResult>,
+    pub attempt_number: i32,
+    pub hint_or_answer: HintLevel,
+}
+
+pub fn grade_sprint(sprint: &Sprint, answers: &[Answer]) -> SprintResult
+```
+
+### 2.5 — Gamification
+
+```rust
+pub fn calculate_level(xp: i32) -> i32
+pub fn xp_for_level(level: i32) -> i32
+pub fn check_badge_unlocks(profile: &Profile, event: &str) -> Vec<Badge>
+pub fn update_streak(current: i32, passed: bool) -> i32
+```
+
+---
+
+## Phase 3: File Watcher Daemon (`kgate-daemon`)
+
+```
+[ ] Watch ~/gitZ/.knowledge-gate/projects/
+[ ] On KNOWLEDGE_*.md change → parse, update debt
+[ ] On QA_*.md change → parse, store quiz bank
+[ ] On EXAM_*.md change → parse, import sprints
+[ ] Debounce rapid changes (100ms)
+[ ] Log to file for debugging
+[ ] Systemd user service file
+```
+
+---
+
+## Phase 4: Tauri Tray App
+
+```
+[ ] System tray icon (green/yellow/red)
+[ ] Tray menu (status, take exam, settings)
+[ ] Uses kgate-core library
+[ ] Notifications via native system
+[ ] Minimal — just tray, no dashboard yet
+```
+
+---
+
+## Phase 5: Dashboard UI
+
+```
+[ ] Svelte frontend
+[ ] Dashboard view (XP, debt, streak)
+[ ] Exam view (take exam in UI)
+[ ] Profile view (badges, history)
+[ ] Uses Tauri IPC to kgate-core
+```
+
+---
+
+## SQLite Schema
 
 ```sql
--- Projects table
+-- migrations/001_initial.sql
+
 CREATE TABLE projects (
-    id TEXT PRIMARY KEY,           -- SHA hash (8 chars)
-    full_hash TEXT NOT NULL,       -- Full SHA for collision check
-    path TEXT NOT NULL UNIQUE,     -- Absolute path
-    name TEXT NOT NULL,            -- Human-readable name
-    created_at TEXT NOT NULL,
-    last_active TEXT NOT NULL
+    id TEXT PRIMARY KEY,
+    full_hash TEXT NOT NULL,
+    path TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_active TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Knowledge debt tracking
 CREATE TABLE debt_log (
     id INTEGER PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id),
-    action TEXT NOT NULL,          -- 'concept', 'architecture', etc.
+    action TEXT NOT NULL,
     weight INTEGER NOT NULL,
     description TEXT,
-    timestamp TEXT NOT NULL
+    timestamp TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Current debt per project (materialized for speed)
 CREATE TABLE debt_current (
     project_id TEXT PRIMARY KEY REFERENCES projects(id),
     total INTEGER NOT NULL DEFAULT 0,
-    last_updated TEXT NOT NULL
+    last_updated TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Exam sprints
 CREATE TABLE sprints (
     id INTEGER PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id),
     sprint_number INTEGER NOT NULL,
     topic TEXT NOT NULL,
-    questions_json TEXT NOT NULL,  -- JSON array of questions
-    status TEXT NOT NULL DEFAULT 'pending',  -- pending, passed, failed
+    questions_json TEXT NOT NULL,
+    answer_key_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
     best_score INTEGER,
     attempts INTEGER DEFAULT 0,
     xp_available INTEGER NOT NULL,
     xp_earned INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     passed_at TEXT,
     UNIQUE(project_id, sprint_number)
 );
 
--- Global profile
 CREATE TABLE profile (
-    id INTEGER PRIMARY KEY CHECK (id = 1),  -- Singleton
+    id INTEGER PRIMARY KEY CHECK (id = 1),
     total_xp INTEGER NOT NULL DEFAULT 0,
     level INTEGER NOT NULL DEFAULT 1,
     current_streak INTEGER NOT NULL DEFAULT 0,
@@ -156,21 +313,19 @@ CREATE TABLE profile (
     last_activity TEXT
 );
 
--- Badges/achievements
 CREATE TABLE badges (
-    id TEXT PRIMARY KEY,           -- 'git_basics', 'nixos_init', etc.
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
-    icon TEXT,                     -- emoji or icon path
-    rarity TEXT DEFAULT 'common',  -- common, rare, legendary
+    icon TEXT,
+    rarity TEXT DEFAULT 'common',
     unlocked_at TEXT,
-    project_id TEXT REFERENCES projects(id)  -- NULL = global badge
+    project_id TEXT REFERENCES projects(id)
 );
 
--- Skill tree nodes
 CREATE TABLE skills (
     id TEXT PRIMARY KEY,
-    category TEXT NOT NULL,        -- 'git', 'docker', 'nixos', etc.
+    category TEXT NOT NULL,
     name TEXT NOT NULL,
     parent_id TEXT REFERENCES skills(id),
     xp_required INTEGER NOT NULL,
@@ -178,283 +333,113 @@ CREATE TABLE skills (
     unlocked INTEGER DEFAULT 0,
     unlocked_at TEXT
 );
-```
 
-### 1.2 — Data Models (Rust)
-
-```
-[ ] Project struct
-[ ] DebtEntry struct
-[ ] Sprint struct with Question enum (MC, Open, CodeTrace)
-[ ] Profile struct
-[ ] Badge struct
-[ ] Skill struct
-```
-
-### 1.3 — Database Operations
-
-```
-[ ] init_db() — create tables if not exist
-[ ] Project CRUD
-[ ] add_debt(project_id, action, weight, description)
-[ ] get_current_debt(project_id) -> i32
-[ ] clear_debt(project_id, amount)
-[ ] Sprint CRUD
-[ ] record_attempt(sprint_id, score)
-[ ] update_profile(xp_delta, streak_delta)
-[ ] unlock_badge(badge_id)
+-- Initialize singleton profile
+INSERT INTO profile (id) VALUES (1);
 ```
 
 ---
 
-## Phase 2: File Watcher & Parser
+## CLI Output Examples
 
-### 2.1 — File Watcher
-
+### `kgate status`
 ```
-[ ] Watch ~/gitZ/.knowledge-gate/projects/ for changes
-[ ] Detect KNOWLEDGE_*.md, QA_*.md, EXAM_*.md
-[ ] Parse hash from filename, lookup project
-[ ] Trigger appropriate handler
-```
-
-### 2.2 — KNOWLEDGE Parser
-
-```
-[ ] Parse markdown structure:
-    ## [Topic] — [Timestamp]
-    **Context:** ...
-    **Key Points:** ...
-    **File References:** ...
-[ ] Extract debt-worthy items
-[ ] Update debt_log table
-[ ] Update debt_current table
+╭─────────────────────────────────────╮
+│  KnowledgeGATEunlocker              │
+├─────────────────────────────────────┤
+│  Project: exambuilder (a3f8b2c1)    │
+│  Debt: 7/10 ██████████░░░░ WARNING  │
+│                                     │
+│  Profile:                           │
+│  Level 2: Config Wrangler           │
+│  XP: 45/80 ████████░░░░░░           │
+│  Streak: 3 🔥                       │
+│                                     │
+│  Pending: 2 sprints                 │
+╰─────────────────────────────────────╯
 ```
 
-### 2.3 — QA Parser
-
+### `kgate exam take 1`
 ```
-[ ] Section 1: Parse Q&A transcript
-[ ] Section 2: Parse generated quiz bank
-[ ] Store in intermediate format for exam assembly
-```
+Sprint 1: NixOS Basics
+━━━━━━━━━━━━━━━━━━━━━━
 
-### 2.4 — EXAM Parser
+Q1. [RECALL] ⭐ — 10 XP
+Which command rebuilds NixOS and switches WITHOUT adding a boot entry?
 
-```
-[ ] Parse sprint headers: ## Sprint N: <Topic>
-[ ] Parse questions: ### QN. [TIER] ⭐... — XP
-[ ] Parse MC options: - A) through - D)
-[ ] Parse answer key: ## 🔑 Answer Key
-[ ] Create Sprint records in DB
+  A) nixos-rebuild switch
+  B) nixos-rebuild test
+  C) nixos-rebuild boot
+  D) nixos-rebuild dry-activate
+
+Your answer: _
 ```
 
----
-
-## Phase 3: Grading Engine
-
-### 3.1 — Answer Input
-
+### `kgate profile`
 ```
-[ ] Accept answers via:
-    - CLI: `kgate answer 1 A B "my open answer"`
-    - Tauri IPC from UI
-    - File-based (answers.json in project dir)
-```
-
-### 3.2 — Grading Logic
-
-```
-[ ] MC: exact match = full XP, wrong = 0
-[ ] Open-ended: 3-point scale
-    - 3 = all key points (100% XP)
-    - 2 = main concept (66% XP)
-    - 1 = surface awareness (33% XP)
-    - 0 = wrong (0 XP)
-[ ] Code-trace: compare against expected output
-[ ] Calculate sprint percentage
-```
-
-### 3.3 — Scoring Flow
-
-```
-[ ] Grade sprint
-[ ] If >= 70%:
-    - Mark sprint PASSED
-    - Award XP to profile
-    - Reduce debt by 3
-    - Increment streak
-    - Check for badge unlocks
-[ ] If < 70%:
-    - Increment attempts
-    - Return appropriate feedback (hints vs answers)
-    - Keep streak (no penalty)
-```
-
-### 3.4 — Feedback Generation
-
-```
-[ ] Attempt 1 fail: hints only
-[ ] Attempt 2 fail: full answers + explanations
-[ ] Attempt 3+: answers visible, encouraging tone
-[ ] Template responses (ADHD-friendly, no guilt)
-```
-
----
-
-## Phase 4: System Tray App
-
-### 4.1 — Tray Icon
-
-```
-[ ] Register system tray with Tauri
-[ ] Icon states:
-    - Green: debt < 7, all clear
-    - Yellow: debt 7-9, warning
-    - Red: debt >= 10, locked
-[ ] Tooltip shows current debt/threshold
-```
-
-### 4.2 — Tray Menu
-
-```
-[ ] "Dashboard" — open main window
-[ ] "Current Debt: X/10"
-[ ] "Take Exam" — open exam UI
-[ ] Separator
-[ ] "Projects" submenu
-[ ] "Settings"
-[ ] "Quit"
-```
-
-### 4.3 — Notifications
-
-```
-[ ] Debt warning at threshold - 3
-[ ] Lockdown notification at threshold
-[ ] Achievement unlocked (with sound)
-[ ] Sprint passed celebration
-[ ] Streak milestone (3, 5, 10...)
-```
-
----
-
-## Phase 5: Dashboard UI
-
-### 5.1 — Main Dashboard
-
-```
-[ ] XP bar with level indicator
-[ ] Current debt meter (visual)
-[ ] Streak counter with flame icon
-[ ] Recent activity feed
-[ ] Project list with status
-```
-
-### 5.2 — Exam View
-
-```
-[ ] Sprint selector
-[ ] Question display (one at a time for focus)
-[ ] Answer input (MC buttons, text area)
-[ ] Progress indicator (Q 2/3)
-[ ] Submit sprint button
-[ ] Results screen with XP animation
-```
-
-### 5.3 — Profile View
-
-```
-[ ] Total stats (XP, level, sprints passed)
-[ ] Badge collection grid
-[ ] Skill tree preview (Phase 3+)
-[ ] History of achievements
-```
-
----
-
-## Phase 6: CLI Tool (Optional)
-
-```
-[ ] kgate status — show debt, projects, profile
-[ ] kgate debt — detailed debt breakdown
-[ ] kgate exam [project] — list pending sprints
-[ ] kgate answer <sprint> <answers...> — submit answers
-[ ] kgate export — export profile to JSON
-```
-
----
-
-## Technical Decisions
-
-### Async Runtime
-- tokio for async operations
-- sqlx with runtime-tokio feature
-
-### State Management
-- Tauri state for shared app state
-- SQLite as single source of truth
-- Frontend stores sync via IPC
-
-### File Watching
-- notify crate for cross-platform file watching
-- Debounce rapid changes (100ms)
-
-### Sound
-- rodio crate for achievement sounds
-- Ship small WAV files in bundle
-
-### Theming
-- CSS variables for light/dark
-- System preference detection via Tauri
-
----
-
-## Testing Strategy
-
-### Unit Tests
-```
-[ ] Debt calculation
-[ ] Grading logic
-[ ] XP/level formulas
-[ ] Parser correctness
-```
-
-### Integration Tests
-```
-[ ] DB operations
-[ ] File watch → parse → store flow
-[ ] Grade → update profile flow
-```
-
-### Manual Testing
-```
-[ ] Full flow: build with Claude → debt accumulates → lockdown → exam → unlock
-[ ] Tray icon state changes
-[ ] Notifications fire correctly
-[ ] Sound plays on achievement
+╭─────────────────────────────────────╮
+│  Level 2: Config Wrangler           │
+│  XP: 45/80 ████████░░░░░░           │
+├─────────────────────────────────────┤
+│  Stats:                             │
+│  Sprints passed: 4                  │
+│  Current streak: 3 🔥               │
+│  Best streak: 5                     │
+├─────────────────────────────────────┤
+│  Badges:                            │
+│  🏅 First Sprint                    │
+│  🏅 Git Basics                      │
+│  🏅 NixOS Initiate                  │
+╰─────────────────────────────────────╯
 ```
 
 ---
 
 ## Milestones
 
-| Milestone | Deliverable | Definition of Done |
-|-----------|-------------|-------------------|
-| M0 | Dev environment | `nix develop` works, Tauri window opens |
-| M1 | Data layer | Schema created, CRUD operations work |
-| M2 | File parsing | KNOWLEDGE/QA/EXAM files parsed correctly |
-| M3 | Grading | CLI can grade a sprint, updates DB |
-| M4 | Tray app | Icon shows, menu works, notifications fire |
-| M5 | Dashboard | Basic stats display in window |
-| M6 | MVP | Full loop: generate → quiz → grade → track |
+| # | Deliverable | Definition of Done |
+|---|-------------|-------------------|
+| M1 | Project scaffold | Workspace builds, shell.nix works |
+| M2 | DB + models | Schema runs, CRUD operations work |
+| M3 | CLI skeleton | `kgate status` shows mock data |
+| M4 | Parsers | `kgate parse *` works on test files |
+| M5 | Grader | `kgate exam take` grades correctly |
+| M6 | Full CLI | All commands work end-to-end |
+| M7 | Daemon | File watcher updates DB on changes |
+| M8 | Tray app | Icon shows debt state |
+| M9 | MVP | Full loop works |
 
 ---
 
-## Open Decisions
+## Dependencies
 
-1. **Frontend framework**: Svelte (lighter) vs Vue (more familiar)?
-2. **Open-ended grading**: LLM call or keyword matching?
-3. **Export format**: JSON only or also YAML?
-4. **Portable mode**: Support running from USB/different machines?
-5. **First badge set**: What achievements to ship initially?
+```toml
+# kgate-core/Cargo.toml
+[dependencies]
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+thiserror = "1"
+
+# kgate/Cargo.toml
+[dependencies]
+kgate-core = { path = "../kgate-core" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+dialoguer = "0.11"          # Interactive prompts
+console = "0.15"            # Colors + styling
+indicatif = "0.17"          # Progress bars
+```
+
+---
+
+## Next Steps
+
+1. Create Cargo workspace
+2. Set up shell.nix
+3. Create kgate-core with schema
+4. Build `kgate init` and `kgate status`
+5. Iterate from there
