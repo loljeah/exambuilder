@@ -1,0 +1,159 @@
+# Knowledge Domains Definition
+# This file is the single source of truth for domain icons and keywords.
+# Used by kgate for consistent domain detection and display.
+
+[domains.rust]
+name = "Rust"
+icon = "🦀"
+category = "lang"
+keywords = ["rust", "cargo", "crate", "rustc", "tokio", "async"]
+
+[domains.python]
+name = "Python"
+icon = "🐍"
+category = "lang"
+keywords = ["python", "pip", "django", "flask", "pandas", "numpy", "pytest"]
+
+[domains.bash]
+name = "Bash"
+icon = "🐚"
+category = "lang"
+keywords = ["bash", "shell", "sh", "zsh", "script", "chmod", "grep", "sed", "awk"]
+
+[domains.nix]
+name = "Nix"
+icon = "❄️"
+category = "lang"
+keywords = ["nix", "nixos", "flake", "derivation", "nixpkgs", "home-manager"]
+
+[domains.javascript]
+name = "JavaScript"
+icon = "🟨"
+category = "lang"
+keywords = ["javascript", "js", "node", "npm", "react", "vue", "webpack"]
+
+[domains.typescript]
+name = "TypeScript"
+icon = "🔷"
+category = "lang"
+keywords = ["typescript", "ts", "tsc", "angular", "deno"]
+
+[domains.docker]
+name = "Docker"
+icon = "🐳"
+category = "tool"
+keywords = ["docker", "container", "dockerfile", "compose", "podman"]
+
+[domains.git]
+name = "Git"
+icon = "🔀"
+category = "tool"
+keywords = ["git", "commit", "branch", "merge", "rebase", "repository"]
+
+[domains.linux]
+name = "Linux"
+icon = "🐧"
+category = "tech"
+keywords = ["linux", "kernel", "systemd", "proc", "sysfs", "dmesg"]
+
+[domains.networking]
+name = "Networking"
+icon = "🌐"
+category = "concept"
+keywords = ["network", "tcp", "udp", "ip", "dns", "http", "port", "socket", "vlan", "firewall", "mikrotik", "router"]
+
+[domains.security]
+name = "Security"
+icon = "🔒"
+category = "concept"
+keywords = ["security", "auth", "encrypt", "ssl", "tls", "password", "key", "certificate", "ssh"]
+
+[domains.databases]
+name = "Databases"
+icon = "🗄️"
+category = "concept"
+keywords = ["database", "sql", "sqlite", "postgres", "mysql", "query", "table"]
+
+[domains.api]
+name = "APIs"
+icon = "🔌"
+category = "concept"
+keywords = ["api", "rest", "graphql", "endpoint", "request", "response", "json", "http"]
+
+[domains.hardware]
+name = "Hardware"
+icon = "🔧"
+category = "tech"
+keywords = ["hardware", "cpu", "ram", "disk", "ssd", "nvme", "usb", "pci"]
+
+[domains.embedded]
+name = "Embedded/IoT"
+icon = "📟"
+category = "tech"
+keywords = ["embedded", "esp32", "arduino", "gpio", "uart", "spi", "i2c", "firmware", "sensor", "camera"]
+
+[domains.gpu]
+name = "GPU/Graphics"
+icon = "🎮"
+category = "tech"
+keywords = ["gpu", "cuda", "rocm", "vulkan", "opengl", "shader", "render"]
+
+[domains.ai_ml]
+name = "AI/ML"
+icon = "🤖"
+category = "concept"
+keywords = ["ai", "ml", "model", "neural", "training", "inference", "tensor", "diffusion", "llm", "gemini"]
+
+[domains.devops]
+name = "DevOps"
+icon = "🔄"
+category = "concept"
+keywords = ["devops", "ci", "cd", "pipeline", "deploy", "kubernetes", "k8s"]
+
+[domains.testing]
+name = "Testing"
+icon = "🧪"
+category = "concept"
+keywords = ["test", "unit", "integration", "mock", "assert", "coverage"]
+
+[domains.architecture]
+name = "Architecture"
+icon = "🏗️"
+category = "concept"
+keywords = ["architecture", "design", "pattern", "module", "component", "layer"]
+
+[domains.gaming]
+name = "Gaming"
+icon = "🕹️"
+category = "tech"
+keywords = ["game", "phaser", "retro", "controller", "joystick", "gamepad"]
+
+[domains.audio]
+name = "Audio"
+icon = "🎵"
+category = "tech"
+keywords = ["audio", "music", "stream", "sound", "mp3", "wav", "rip"]
+
+[domains.video]
+name = "Video"
+icon = "📺"
+category = "tech"
+keywords = ["video", "crt", "tv", "display", "scart", "hdmi", "rtsp"]
+
+[domains.printing3d]
+name = "3D Printing"
+icon = "🧊"
+category = "tech"
+keywords = ["3d", "stl", "mesh", "print", "parametric", "slicer"]
+
+[domains.chat]
+name = "Chat/Messaging"
+icon = "💬"
+category = "concept"
+keywords = ["chat", "bot", "signal", "message", "telegram", "discord"]
+
+[domains.ops]
+name = "Operations"
+icon = "📊"
+category = "concept"
+keywords = ["log", "sysinfo", "monitor", "gather", "metrics", "observability"]

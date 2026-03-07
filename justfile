@@ -64,3 +64,13 @@ check: fmt-check lint test
 # Clean build artifacts
 clean:
     cargo clean
+
+# Install to ~/.local/bin
+install: release
+    cp target/release/kgate ~/.local/bin/kgate
+    @echo "✓ Installed kgate to ~/.local/bin"
+
+# Uninstall
+uninstall:
+    rm -f ~/.local/bin/kgate
+    @echo "✓ Removed kgate"
