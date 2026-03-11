@@ -44,6 +44,14 @@ impl Database {
                 let _ = sqlx::query(stmt).execute(&self.pool).await;
             }
         }
+        // Migration 006: sprint IDs and source project names
+        let migration_006 = include_str!("../../../migrations/006_sprint_ids.sql");
+        for statement in migration_006.split(';') {
+            let stmt = statement.trim();
+            if !stmt.is_empty() && !stmt.starts_with("--") {
+                let _ = sqlx::query(stmt).execute(&self.pool).await;
+            }
+        }
         Ok(())
     }
 
@@ -245,13 +253,15 @@ impl Database {
 
     pub async fn upsert_sprint(&self, sprint: &Sprint) -> Result<()> {
         sqlx::query(
-            "INSERT INTO sprints (project_id, sprint_number, topic, questions_json, answer_key_json, xp_available)
-            VALUES (?, ?, ?, ?, ?, ?)
+            "INSERT INTO sprints (project_id, sprint_number, topic, questions_json, answer_key_json, xp_available, sprint_id, source_project_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(project_id, sprint_number) DO UPDATE SET
                 topic = excluded.topic,
                 questions_json = excluded.questions_json,
                 answer_key_json = excluded.answer_key_json,
-                xp_available = excluded.xp_available",
+                xp_available = excluded.xp_available,
+                sprint_id = excluded.sprint_id,
+                source_project_name = excluded.source_project_name",
         )
         .bind(&sprint.project_id)
         .bind(sprint.sprint_number)
@@ -259,6 +269,8 @@ impl Database {
         .bind(&sprint.questions_json)
         .bind(&sprint.answer_key_json)
         .bind(sprint.xp_available)
+        .bind(&sprint.sprint_id)
+        .bind(&sprint.source_project_name)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -1001,6 +1013,48 @@ impl Database {
         .await?;
 
         Ok(result.map(|r| r.0).unwrap_or(2)) // Default to medium difficulty
+    }
+
+    // ============================================
+    // Review Session Methods
+    // ============================================
+
+    /// Start a new review session, returns the session ID
+    pub async fn start_review_session(&self) -> Result<i64> {
+        let result = sqlx::query(
+            "INSERT INTO review_sessions (started_at) VALUES (datetime('now'))",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(result.last_insert_rowid())
+    }
+
+    /// End a review session with final stats
+    pub async fn end_review_session(
+        &self,
+        session_id: i64,
+        items_reviewed: i32,
+        items_correct: i32,
+        domains_json: &str,
+        xp_earned: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE review_sessions SET
+                ended_at = datetime('now'),
+                items_reviewed = ?,
+                items_correct = ?,
+                domains_covered = ?,
+                xp_earned = ?
+            WHERE id = ?",
+        )
+        .bind(items_reviewed)
+        .bind(items_correct)
+        .bind(domains_json)
+        .bind(xp_earned)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     /// Get full difficulty profile for a domain

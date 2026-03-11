@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::style;
 use std::path::Path;
 
-use kgate_core::{scan_directory, find_exam_file, parse_exam_file, Database};
+use kgate_core::{scan_directory, find_exam_file, parse_exam_file, generate_sprint_id, Database};
 
 pub async fn cmd_scan(db: &Database, path: &Path, import: bool) -> Result<()> {
     println!("Scanning {}...\n", style(path.display()).cyan());
@@ -116,6 +116,8 @@ async fn import_exam(db: &Database, project_path: &Path, exam_file: &Path) -> Re
             xp_earned: 0,
             created_at: chrono::Utc::now(),
             passed_at: None,
+            sprint_id: Some(generate_sprint_id(&project.id, sprint.number, &sprint.topic)),
+            source_project_name: Some(exam.project_name.clone()),
         };
 
         db.upsert_sprint(&s).await?;
@@ -148,6 +150,8 @@ pub async fn cmd_auto_load(db: &Database, project_id: &str, project_path: &Path)
                 xp_earned: 0,
                 created_at: chrono::Utc::now(),
                 passed_at: None,
+                sprint_id: Some(generate_sprint_id(project_id, sprint.number, &sprint.topic)),
+                source_project_name: Some(exam.project_name.clone()),
             };
 
             db.upsert_sprint(&s).await?;

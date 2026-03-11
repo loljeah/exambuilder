@@ -469,9 +469,9 @@ async fn cmd_random() -> Result<()> {
         .unwrap_or(false);
 
     if use_voice {
-        exam::cmd_exam_take_voice(&database, project_id, *sprint_num).await?;
+        exam::cmd_exam_take_voice(&database, project_id, *sprint_num, None).await?;
     } else {
-        exam::cmd_exam_take(&database, project_id, *sprint_num).await?;
+        exam::cmd_exam_take(&database, project_id, *sprint_num, None).await?;
     }
 
     Ok(())
@@ -866,9 +866,9 @@ async fn cmd_take(action: TakeCommands) -> Result<()> {
 
             // Take the sprint (with or without voice mode)
             if voice {
-                exam::cmd_exam_take_voice(&database, &project.id, sprint_num).await?;
+                exam::cmd_exam_take_voice(&database, &project.id, sprint_num, Some(number)).await?;
             } else {
-                exam::cmd_exam_take(&database, &project.id, sprint_num).await?;
+                exam::cmd_exam_take(&database, &project.id, sprint_num, Some(number)).await?;
             }
         }
     }
@@ -914,6 +914,12 @@ async fn cmd_show(action: ShowCommands) -> Result<()> {
                 println!();
             }
 
+            // Show source project name if available
+            if let Some(ref src_name) = sprints.first().and_then(|s| s.source_project_name.as_ref()) {
+                println!("  Source: {}", style(src_name).dim());
+                println!();
+            }
+
             // Show sprints
             println!("  {}", style("Sprints:").bold());
             for s in &sprints {
@@ -926,14 +932,16 @@ async fn cmd_show(action: ShowCommands) -> Result<()> {
                 } else {
                     "-".to_string()
                 };
+                let id_label = s.sprint_id.as_deref().map(|id| format!(" [{}]", id)).unwrap_or_default();
 
                 println!(
-                    "    {} Sprint {}: {} — {} XP (best: {})",
+                    "    {} Sprint {}: {} — {} XP (best: {}){}",
                     status,
                     s.sprint_number,
                     s.topic,
                     s.xp_available,
-                    score_str
+                    score_str,
+                    style(id_label).dim()
                 );
             }
 
@@ -1580,55 +1588,7 @@ async fn cmd_review(limit: i32) -> Result<()> {
     }
 
     let database = Database::new(&db).await?;
-
-    // Get due reviews
-    let due_items = database.get_due_reviews(limit).await?;
-
-    if due_items.is_empty() {
-        let stats = database.get_review_stats().await?;
-        println!(
-            "{} No reviews due right now!",
-            style("✓").green()
-        );
-        println!(
-            "  {} items in review queue, next review scheduled later",
-            stats.total_items
-        );
-        return Ok(());
-    }
-
-    println!(
-        "{} {} items due for review",
-        style("📚").cyan(),
-        due_items.len()
-    );
-    println!();
-
-    // Simple review session (for now, just show the items)
-    for (i, item) in due_items.iter().enumerate() {
-        println!(
-            "  {}. [{}] Q{}: {}",
-            i + 1,
-            style(&item.domain).cyan(),
-            item.question_number,
-            if item.question_text.len() > 50 {
-                format!("{}...", &item.question_text[..50])
-            } else {
-                item.question_text.clone()
-            }
-        );
-        println!(
-            "     Streak: {} | EF: {:.2} | Next: {} days",
-            item.streak,
-            item.easiness_factor,
-            item.interval_days
-        );
-    }
-
-    println!();
-    println!(
-        "Full review mode coming soon. For now, take sprints to build your review queue."
-    );
+    exam::cmd_review_session(&database, limit).await?;
 
     Ok(())
 }

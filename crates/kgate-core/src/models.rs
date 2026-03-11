@@ -43,6 +43,19 @@ pub struct Sprint {
     pub xp_earned: i32,
     pub created_at: DateTime<Utc>,
     pub passed_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub sprint_id: Option<String>,
+    #[sqlx(default)]
+    pub source_project_name: Option<String>,
+}
+
+/// Generate a deterministic 8-char hex sprint ID from project_id + sprint_number + topic
+pub fn generate_sprint_id(project_id: &str, sprint_number: i32, topic: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(format!("{}:{}:{}", project_id, sprint_number, topic).as_bytes());
+    let hash = format!("{:x}", hasher.finalize());
+    hash[..8].to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
