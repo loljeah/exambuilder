@@ -589,7 +589,7 @@ impl CodebaseAnalyzer {
         questions
     }
 
-    fn element_to_question(&self, elem: &CodeElement, _q_num: usize) -> GeneratedQuestion {
+    pub fn element_to_question(&self, elem: &CodeElement, _q_num: usize) -> GeneratedQuestion {
         let (tier, difficulty, xp) = match elem.complexity {
             Complexity::Simple => ("RECALL", "Easy", 10),
             Complexity::Medium => ("COMPREHENSION", "Medium", 10),

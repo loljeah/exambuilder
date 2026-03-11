@@ -56,5 +56,11 @@ toml = "0.8"
 # Random
 rand = "0.8"
 
+# HTTP client (for Anthropic API)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Async trait support
+async-trait = "0.1"
+
 # Internal
 kgate-core = { path = "crates/kgate-core" }

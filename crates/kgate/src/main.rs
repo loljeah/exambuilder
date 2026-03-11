@@ -99,6 +99,14 @@ enum Commands {
         path: PathBuf,
         #[arg(short, long, help = "Output exam file (default: exam_<name>.md)")]
         output: Option<PathBuf>,
+        #[arg(long, help = "Force LLM generation (requires ANTHROPIC_API_KEY)")]
+        llm: bool,
+        #[arg(long, help = "Force template-based generation (no API needed)")]
+        templates: bool,
+        #[arg(long, help = "Show what would be generated without writing files")]
+        dry_run: bool,
+        #[arg(long, help = "Override LLM model (default: claude-opus-4-20250514)")]
+        model: Option<String>,
     },
     /// Spaced repetition review session
     Review {
@@ -348,7 +356,7 @@ async fn main() -> Result<()> {
         Some(Commands::Whoami) => cli::progress::cmd_whoami().await?,
         Some(Commands::ExportBookmarks { output }) => cli::bookmarks::cmd_export_bookmarks(output).await?,
         Some(Commands::Legend) => cmd_legend().await?,
-        Some(Commands::Generate { path, output }) => cli::generation::cmd_generate(&path, output).await?,
+        Some(Commands::Generate { path, output, llm, templates, dry_run, model }) => cli::generation::cmd_generate(&path, output, llm, templates, dry_run, model).await?,
         Some(Commands::Review { limit }) => cmd_review(limit).await?,
         Some(Commands::Catalog { action }) => cli::catalog::cmd_catalog(action).await?,
         Some(Commands::Grade { answer, concepts }) => cli::catalog::cmd_grade(&answer, &concepts).await?,
