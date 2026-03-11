@@ -138,46 +138,42 @@ impl AdaptiveDifficultyEngine {
         let (streak_positive, streak_count) = window.current_streak();
 
         // Check for streak-based adjustment
-        if streak_positive && streak_count >= self.streak_to_increase {
-            if current < DifficultyLevel::Expert {
+        if streak_positive && streak_count >= self.streak_to_increase
+            && current < DifficultyLevel::Expert {
                 return DifficultyRecommendation {
                     level: DifficultyLevel::from_i32(current as i32 + 1),
                     reason: "Hot streak! Time for a challenge.".to_string(),
                     confidence: 0.9,
                 };
             }
-        }
 
-        if !streak_positive && streak_count >= self.streak_to_decrease {
-            if current > DifficultyLevel::Beginner {
+        if !streak_positive && streak_count >= self.streak_to_decrease
+            && current > DifficultyLevel::Beginner {
                 return DifficultyRecommendation {
                     level: DifficultyLevel::from_i32(current as i32 - 1),
                     reason: "Let's reinforce the basics.".to_string(),
                     confidence: 0.9,
                 };
             }
-        }
 
         // Check accuracy-based adjustment
-        if accuracy >= self.increase_threshold && window.recent_answers.len() >= 5 {
-            if current < DifficultyLevel::Expert {
+        if accuracy >= self.increase_threshold && window.recent_answers.len() >= 5
+            && current < DifficultyLevel::Expert {
                 return DifficultyRecommendation {
                     level: DifficultyLevel::from_i32(current as i32 + 1),
                     reason: format!("{}% accuracy - ready for more!", (accuracy * 100.0) as i32),
                     confidence: 0.7,
                 };
             }
-        }
 
-        if accuracy < self.decrease_threshold && window.recent_answers.len() >= 5 {
-            if current > DifficultyLevel::Beginner {
+        if accuracy < self.decrease_threshold && window.recent_answers.len() >= 5
+            && current > DifficultyLevel::Beginner {
                 return DifficultyRecommendation {
                     level: DifficultyLevel::from_i32(current as i32 - 1),
                     reason: "Building stronger foundations.".to_string(),
                     confidence: 0.7,
                 };
             }
-        }
 
         // Stay at current level
         DifficultyRecommendation {
