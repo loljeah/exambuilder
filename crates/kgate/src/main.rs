@@ -127,6 +127,13 @@ enum Commands {
         #[command(subcommand)]
         action: VoiceCommands,
     },
+    /// Run built-in self-test diagnostics
+    Selftest {
+        #[arg(short, long, help = "Show detailed output")]
+        verbose: bool,
+        #[arg(short, long, help = "Auto-fix issues where possible")]
+        fix: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -347,6 +354,7 @@ async fn main() -> Result<()> {
         Some(Commands::Grade { answer, concepts }) => cli::catalog::cmd_grade(&answer, &concepts).await?,
         Some(Commands::Harvest { action }) => cli::catalog::cmd_harvest(action).await?,
         Some(Commands::Voice { action }) => cmd_voice(action).await?,
+        Some(Commands::Selftest { verbose, fix }) => cli::selftest::cmd_selftest(verbose, fix).await?,
     }
 
     Ok(())

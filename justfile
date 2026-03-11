@@ -19,6 +19,10 @@ run *args:
 voice *args:
     cargo run -p kgate -- voice {{args}}
 
+# Run selftest diagnostics
+selftest:
+    cargo run -p kgate -- selftest
+
 # Watch and rebuild on changes
 watch:
     cargo watch -x 'build'
@@ -27,13 +31,24 @@ watch:
 dev:
     cargo watch -x 'run -p kgate'
 
-# Run tests
-test:
-    cargo test
+# Run all tests
+test: test-unit test-integ
+
+# Run unit tests only (lib tests)
+test-unit:
+    cargo test --workspace --lib
+
+# Run integration tests only
+test-integ:
+    cargo test --workspace --test '*'
 
 # Run clippy linter
 lint:
-    cargo clippy -- -D warnings
+    cargo clippy --workspace -- -D warnings
+
+# Lint including test code
+lint-all:
+    cargo clippy --workspace --tests -- -D warnings
 
 # Format code
 fmt:
@@ -59,7 +74,7 @@ db-reset:
     sqlx migrate run
 
 # Full check (fmt, lint, test)
-check: fmt-check lint test
+check: fmt-check lint-all test
 
 # Clean build artifacts
 clean:

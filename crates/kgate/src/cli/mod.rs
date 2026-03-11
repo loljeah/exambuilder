@@ -4,3 +4,4 @@ pub mod debt;
 pub mod generation;
 pub mod progress;
 pub mod project;
+pub mod selftest;
