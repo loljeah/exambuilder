@@ -377,6 +377,7 @@ pub fn get_exam_display_name(project_name: &str, sprint_topics: &[String]) -> St
 }
 
 // Get domain icons for an exam based on project name and topics
+#[allow(clippy::type_complexity)]
 pub fn get_exam_domains(project_name: &str, sprint_topics: &[String]) -> Vec<(&'static str, &'static str)> {
     let name_lower = project_name.to_lowercase();
     let topics_lower: Vec<String> = sprint_topics.iter().map(|s| s.to_lowercase()).collect();
@@ -423,4 +424,220 @@ pub fn get_exam_domains(project_name: &str, sprint_topics: &[String]) -> Vec<(&'
     // Limit to 3 most relevant domains
     found.truncate(3);
     found
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_profile(level: i32, total_xp: i32) -> Profile {
+        Profile {
+            id: 1,
+            total_xp,
+            level,
+            current_streak: 0,
+            best_streak: 0,
+            sprints_passed: 0,
+            last_activity: None,
+            questions_passed: 0,
+            questions_attempted: 0,
+            current_combo: 0,
+            best_combo: 0,
+            perfect_sprints: 0,
+            total_study_seconds: 0,
+        }
+    }
+
+    // ---- Level title tests ----
+
+    #[test]
+    fn test_level_title_level_1() {
+        let p = make_profile(1, 0);
+        assert_eq!(p.level_title(), "Novice");
+    }
+
+    #[test]
+    fn test_level_title_level_2() {
+        let p = make_profile(2, 0);
+        assert_eq!(p.level_title(), "Config Wrangler");
+    }
+
+    #[test]
+    fn test_level_title_level_3() {
+        let p = make_profile(3, 0);
+        assert_eq!(p.level_title(), "System Operator");
+    }
+
+    #[test]
+    fn test_level_title_level_4() {
+        let p = make_profile(4, 0);
+        assert_eq!(p.level_title(), "Stack Builder");
+    }
+
+    #[test]
+    fn test_level_title_level_5() {
+        let p = make_profile(5, 0);
+        assert_eq!(p.level_title(), "Infra Architect");
+    }
+
+    #[test]
+    fn test_level_title_above_5() {
+        let p = make_profile(6, 0);
+        assert_eq!(p.level_title(), "Master");
+        let p = make_profile(99, 0);
+        assert_eq!(p.level_title(), "Master");
+    }
+
+    // ---- XP threshold tests ----
+
+    #[test]
+    fn test_xp_thresholds() {
+        assert_eq!(make_profile(1, 0).xp_for_next_level(), 50);
+        assert_eq!(make_profile(2, 0).xp_for_next_level(), 80);
+        assert_eq!(make_profile(3, 0).xp_for_next_level(), 120);
+        assert_eq!(make_profile(4, 0).xp_for_next_level(), 180);
+        assert_eq!(make_profile(5, 0).xp_for_next_level(), 250);
+    }
+
+    #[test]
+    fn test_xp_threshold_above_5_scales() {
+        // level 6 => 100 * 6 = 600
+        assert_eq!(make_profile(6, 0).xp_for_next_level(), 600);
+        // level 10 => 100 * 10 = 1000
+        assert_eq!(make_profile(10, 0).xp_for_next_level(), 1000);
+    }
+
+    // ---- Sprint ID tests ----
+
+    #[test]
+    fn test_generate_sprint_id_deterministic() {
+        let id1 = generate_sprint_id("proj1", 1, "Basics");
+        let id2 = generate_sprint_id("proj1", 1, "Basics");
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_generate_sprint_id_different_inputs_different_hashes() {
+        let id_a = generate_sprint_id("proj1", 1, "Basics");
+        let id_b = generate_sprint_id("proj1", 2, "Basics");
+        let id_c = generate_sprint_id("proj2", 1, "Basics");
+        let id_d = generate_sprint_id("proj1", 1, "Advanced");
+        assert_ne!(id_a, id_b);
+        assert_ne!(id_a, id_c);
+        assert_ne!(id_a, id_d);
+    }
+
+    #[test]
+    fn test_generate_sprint_id_is_8_chars() {
+        let id = generate_sprint_id("project", 1, "topic");
+        assert_eq!(id.len(), 8);
+        // Should be hex characters
+        assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // ---- Badge definitions tests ----
+
+    #[test]
+    fn test_badges_has_expected_entries() {
+        assert!(BADGES.len() >= 10, "Should have at least 10 badge definitions");
+        // Check specific badges exist
+        let ids: Vec<&str> = BADGES.iter().map(|(id, _, _, _)| *id).collect();
+        assert!(ids.contains(&"first_sprint"));
+        assert!(ids.contains(&"streak_3"));
+        assert!(ids.contains(&"streak_5"));
+        assert!(ids.contains(&"streak_10"));
+        assert!(ids.contains(&"perfect"));
+        assert!(ids.contains(&"project_clear"));
+        assert!(ids.contains(&"xp_100"));
+        assert!(ids.contains(&"xp_500"));
+        assert!(ids.contains(&"xp_1000"));
+    }
+
+    #[test]
+    fn test_badges_have_valid_rarities() {
+        let valid_rarities = ["common", "uncommon", "rare", "legendary"];
+        for (id, _, _, rarity) in BADGES {
+            assert!(
+                valid_rarities.contains(rarity),
+                "Badge '{}' has invalid rarity '{}'",
+                id,
+                rarity
+            );
+        }
+    }
+
+    // ---- ExamNameGenerator tests ----
+
+    #[test]
+    fn test_exam_name_generator_known_project() {
+        let name = ExamNameGenerator::generate("exambuilder", &[]);
+        assert_eq!(name, "The Architect's Exam");
+    }
+
+    #[test]
+    fn test_exam_name_generator_unknown_project_uses_domain() {
+        let topics = vec!["Rust Basics".to_string(), "Cargo Config".to_string()];
+        let name = ExamNameGenerator::generate("some_rust_project", &topics);
+        // Should detect "rust" domain
+        assert!(!name.is_empty());
+    }
+
+    #[test]
+    fn test_get_exam_display_name_delegates() {
+        let name = get_exam_display_name("exambuilder", &[]);
+        assert_eq!(name, "The Architect's Exam");
+    }
+
+    // ---- Domain tests ----
+
+    #[test]
+    fn test_domain_mastery_title() {
+        let mut domain = Domain {
+            id: "rust".to_string(),
+            name: "Rust".to_string(),
+            category: "lang".to_string(),
+            icon: None,
+            total_xp: 0,
+            mastery_level: 0,
+            questions_seen: 0,
+            questions_correct: 0,
+        };
+        assert_eq!(domain.mastery_title(), "Novice");
+        domain.mastery_level = 3;
+        assert_eq!(domain.mastery_title(), "Expert");
+        domain.mastery_level = 5;
+        assert_eq!(domain.mastery_title(), "Grandmaster");
+        domain.mastery_level = 6;
+        assert_eq!(domain.mastery_title(), "Legendary");
+    }
+
+    #[test]
+    fn test_domain_progress_percent() {
+        let mut domain = Domain {
+            id: "rust".to_string(),
+            name: "Rust".to_string(),
+            category: "lang".to_string(),
+            icon: None,
+            total_xp: 0,
+            mastery_level: 0,
+            questions_seen: 0,
+            questions_correct: 0,
+        };
+        assert_eq!(domain.progress_percent(), 0.0);
+
+        domain.questions_seen = 10;
+        domain.questions_correct = 7;
+        let pct = domain.progress_percent();
+        assert!((pct - 70.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_domain_keywords_has_expected_domains() {
+        let domain_ids: Vec<&str> = DOMAIN_KEYWORDS.iter().map(|(id, _)| *id).collect();
+        assert!(domain_ids.contains(&"rust"));
+        assert!(domain_ids.contains(&"python"));
+        assert!(domain_ids.contains(&"nix"));
+        assert!(domain_ids.contains(&"networking"));
+        assert!(domain_ids.contains(&"security"));
+    }
 }

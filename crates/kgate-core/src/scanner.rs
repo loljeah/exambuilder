@@ -154,9 +154,92 @@ pub fn find_exam_file(project_path: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn test_scan_skips_hidden() {
-        // Would need temp dir setup for proper test
+        let tmp = tempfile::tempdir().unwrap();
+        let hidden = tmp.path().join(".hidden_dir");
+        fs::create_dir(&hidden).unwrap();
+        fs::write(hidden.join("exam_secret.md"), "# Exam: Secret").unwrap();
+
+        // Scan the root; the hidden dir should be skipped (depth > 0)
+        let result = scan_directory(tmp.path(), 3).unwrap();
+        // No project should be found inside .hidden_dir
+        assert!(
+            !result.projects.iter().any(|p| p.path == hidden),
+            "Hidden directory should be skipped"
+        );
+    }
+
+    #[test]
+    fn test_finds_exam_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("exam_test.md"), "# Exam: Test").unwrap();
+
+        let result = scan_directory(tmp.path(), 0).unwrap();
+        assert_eq!(result.total_exams, 1);
+        assert!(result.projects[0].exam_file.is_some());
+    }
+
+    #[test]
+    fn test_respects_max_depth() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Create nested structure: root/sub1/sub2/exam_deep.md
+        let sub1 = tmp.path().join("sub1");
+        let sub2 = sub1.join("sub2");
+        fs::create_dir_all(&sub2).unwrap();
+        fs::write(sub2.join("exam_deep.md"), "# Exam: Deep").unwrap();
+
+        // max_depth=0 should only scan the root level, not recurse
+        let result = scan_directory(tmp.path(), 0).unwrap();
+        assert!(
+            !result.projects.iter().any(|p| p.path == sub2),
+            "Should not find projects beyond max_depth"
+        );
+
+        // max_depth=2 should find it
+        let result_deep = scan_directory(tmp.path(), 2).unwrap();
+        assert!(
+            result_deep.projects.iter().any(|p| p.exam_file.is_some()),
+            "Should find exam at sufficient depth"
+        );
+    }
+
+    #[test]
+    fn test_handles_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = scan_directory(tmp.path(), 3).unwrap();
+        assert!(result.projects.is_empty());
+        assert_eq!(result.total_exams, 0);
+        assert_eq!(result.total_qa, 0);
+        assert_eq!(result.total_knowledge, 0);
+    }
+
+    #[test]
+    fn test_find_exam_file_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("exam_myproject.md"), "# Exam: My").unwrap();
+
+        let found = find_exam_file(tmp.path());
+        assert!(found.is_some());
+        let path = found.unwrap();
+        assert!(path.file_name().unwrap().to_string_lossy().contains("exam_"));
+    }
+
+    #[test]
+    fn test_find_exam_file_not_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("readme.md"), "# Readme").unwrap();
+
+        let found = find_exam_file(tmp.path());
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_find_exam_file_returns_none_for_file_path() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let found = find_exam_file(tmp.path());
+        assert!(found.is_none());
     }
 }

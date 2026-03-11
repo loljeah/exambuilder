@@ -38,8 +38,14 @@ impl Database {
         // Migration 005 uses ALTER TABLE, run each statement separately
         let migration_005 = include_str!("../../../migrations/005_enhanced_stats.sql");
         for statement in migration_005.split(';') {
-            let stmt = statement.trim();
-            if !stmt.is_empty() && !stmt.starts_with("--") {
+            // Strip comment-only lines before checking if the segment has real SQL
+            let stripped: String = statement
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let stmt = stripped.trim();
+            if !stmt.is_empty() {
                 // Ignore errors for already-existing columns
                 let _ = sqlx::query(stmt).execute(&self.pool).await;
             }
@@ -47,8 +53,13 @@ impl Database {
         // Migration 006: sprint IDs and source project names
         let migration_006 = include_str!("../../../migrations/006_sprint_ids.sql");
         for statement in migration_006.split(';') {
-            let stmt = statement.trim();
-            if !stmt.is_empty() && !stmt.starts_with("--") {
+            let stripped: String = statement
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let stmt = stripped.trim();
+            if !stmt.is_empty() {
                 let _ = sqlx::query(stmt).execute(&self.pool).await;
             }
         }
@@ -1053,6 +1064,420 @@ impl Database {
         .fetch_optional(&self.pool)
         .await?;
         Ok(profile)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    /// Returns (Database, TempDir). The TempDir must be kept alive for the
+    /// duration of the test so the SQLite file is not deleted.
+    async fn setup_db() -> (Database, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::new(&db_path).await.unwrap();
+        db.init().await.unwrap();
+        (db, dir)
+    }
+
+    async fn setup_db_with_project() -> (Database, Project, TempDir) {
+        let (db, dir) = setup_db().await;
+        let project = db
+            .get_or_create_project("/tmp/test-project", "test-project")
+            .await
+            .unwrap();
+        (db, project, dir)
+    }
+
+    // ---- Profile tests ----
+
+    #[tokio::test]
+    async fn test_get_profile_returns_defaults_after_init() {
+        let (db, _dir) = setup_db().await;
+        let profile = db.get_profile().await.unwrap();
+        assert_eq!(profile.id, 1);
+        assert_eq!(profile.total_xp, 0);
+        assert_eq!(profile.level, 1);
+        assert_eq!(profile.current_streak, 0);
+        assert_eq!(profile.best_streak, 0);
+        assert_eq!(profile.sprints_passed, 0);
+    }
+
+    #[tokio::test]
+    async fn test_update_profile_xp_adds_xp() {
+        let (db, _dir) = setup_db().await;
+        let profile = db.update_profile_xp(25).await.unwrap();
+        assert_eq!(profile.total_xp, 25);
+    }
+
+    #[tokio::test]
+    async fn test_update_profile_xp_triggers_level_up() {
+        let (db, _dir) = setup_db().await;
+        // Level 1 needs 50 XP to level up
+        let profile = db.update_profile_xp(50).await.unwrap();
+        assert_eq!(profile.level, 2);
+    }
+
+    #[tokio::test]
+    async fn test_update_streak_increments_on_pass() {
+        let (db, _dir) = setup_db().await;
+        let streak = db.update_streak(true).await.unwrap();
+        assert_eq!(streak, 1);
+        let streak = db.update_streak(true).await.unwrap();
+        assert_eq!(streak, 2);
+    }
+
+    #[tokio::test]
+    async fn test_update_streak_resets_on_fail() {
+        let (db, _dir) = setup_db().await;
+        db.update_streak(true).await.unwrap();
+        db.update_streak(true).await.unwrap();
+        let streak = db.update_streak(false).await.unwrap();
+        assert_eq!(streak, 0);
+    }
+
+    #[tokio::test]
+    async fn test_update_streak_tracks_best() {
+        let (db, _dir) = setup_db().await;
+        db.update_streak(true).await.unwrap();
+        db.update_streak(true).await.unwrap();
+        db.update_streak(true).await.unwrap();
+        db.update_streak(false).await.unwrap();
+        let profile = db.get_profile().await.unwrap();
+        assert_eq!(profile.best_streak, 3);
+        assert_eq!(profile.current_streak, 0);
+    }
+
+    // ---- Project tests ----
+
+    #[tokio::test]
+    async fn test_get_or_create_project_creates_new() {
+        let (db, _dir) = setup_db().await;
+        let project = db
+            .get_or_create_project("/tmp/my-project", "my-project")
+            .await
+            .unwrap();
+        assert_eq!(project.name, "my-project");
+        assert_eq!(project.path, "/tmp/my-project");
+        assert!(!project.id.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_or_create_project_returns_same_on_second_call() {
+        let (db, _dir) = setup_db().await;
+        let p1 = db
+            .get_or_create_project("/tmp/my-project", "my-project")
+            .await
+            .unwrap();
+        let p2 = db
+            .get_or_create_project("/tmp/my-project", "my-project")
+            .await
+            .unwrap();
+        assert_eq!(p1.id, p2.id);
+    }
+
+    #[tokio::test]
+    async fn test_list_projects_empty_initially() {
+        let (db, _dir) = setup_db().await;
+        let projects = db.list_projects().await.unwrap();
+        assert!(projects.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_projects_populated_after_add() {
+        let (db, _dir) = setup_db().await;
+        db.get_or_create_project("/tmp/p1", "p1").await.unwrap();
+        db.get_or_create_project("/tmp/p2", "p2").await.unwrap();
+        let projects = db.list_projects().await.unwrap();
+        assert_eq!(projects.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_project_by_id() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        let found = db.get_project_by_id(&project.id).await.unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().name, "test-project");
+    }
+
+    #[tokio::test]
+    async fn test_get_project_by_id_not_found() {
+        let (db, _dir) = setup_db().await;
+        let found = db.get_project_by_id("nonexistent").await.unwrap();
+        assert!(found.is_none());
+    }
+
+    // ---- Debt tests ----
+
+    #[tokio::test]
+    async fn test_get_debt_returns_zero_initially() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        let debt = db.get_debt(&project.id).await.unwrap();
+        assert_eq!(debt, 0);
+    }
+
+    #[tokio::test]
+    async fn test_add_debt_increments_correctly() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        let debt = db
+            .add_debt(&project.id, "concept_explained", 1, None)
+            .await
+            .unwrap();
+        assert_eq!(debt, 1);
+        let debt = db
+            .add_debt(&project.id, "architecture_decision", 2, Some("chose X"))
+            .await
+            .unwrap();
+        assert_eq!(debt, 3);
+    }
+
+    #[tokio::test]
+    async fn test_clear_debt_decrements() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        db.add_debt(&project.id, "action", 5, None).await.unwrap();
+        let debt = db.clear_debt(&project.id, 3).await.unwrap();
+        assert_eq!(debt, 2);
+    }
+
+    #[tokio::test]
+    async fn test_clear_debt_floors_at_zero() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        db.add_debt(&project.id, "action", 3, None).await.unwrap();
+        let debt = db.clear_debt(&project.id, 10).await.unwrap();
+        assert_eq!(debt, 0);
+    }
+
+    // ---- Sprint tests ----
+
+    fn make_test_sprint(project_id: &str, number: i32, topic: &str) -> Sprint {
+        Sprint {
+            id: 0,
+            project_id: project_id.to_string(),
+            sprint_number: number,
+            topic: topic.to_string(),
+            questions_json: "[]".to_string(),
+            answer_key_json: "{}".to_string(),
+            status: "pending".to_string(),
+            best_score: None,
+            attempts: 0,
+            xp_available: 30,
+            xp_earned: 0,
+            created_at: Utc::now(),
+            passed_at: None,
+            sprint_id: None,
+            source_project_name: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sprint_insert() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        let sprint = make_test_sprint(&project.id, 1, "Basics");
+        db.upsert_sprint(&sprint).await.unwrap();
+
+        let found = db.get_sprint(&project.id, 1).await.unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().topic, "Basics");
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sprint_update() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        let sprint = make_test_sprint(&project.id, 1, "Basics");
+        db.upsert_sprint(&sprint).await.unwrap();
+
+        let mut updated = make_test_sprint(&project.id, 1, "Advanced Basics");
+        updated.xp_available = 50;
+        db.upsert_sprint(&updated).await.unwrap();
+
+        let found = db.get_sprint(&project.id, 1).await.unwrap().unwrap();
+        assert_eq!(found.topic, "Advanced Basics");
+        assert_eq!(found.xp_available, 50);
+    }
+
+    #[tokio::test]
+    async fn test_get_sprint_returns_none_if_missing() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        let found = db.get_sprint(&project.id, 99).await.unwrap();
+        assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_sprints_returns_multiple() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        db.upsert_sprint(&make_test_sprint(&project.id, 1, "First"))
+            .await
+            .unwrap();
+        db.upsert_sprint(&make_test_sprint(&project.id, 2, "Second"))
+            .await
+            .unwrap();
+        db.upsert_sprint(&make_test_sprint(&project.id, 3, "Third"))
+            .await
+            .unwrap();
+
+        let sprints = db.get_sprints(&project.id).await.unwrap();
+        assert_eq!(sprints.len(), 3);
+        assert_eq!(sprints[0].sprint_number, 1);
+        assert_eq!(sprints[2].sprint_number, 3);
+    }
+
+    // ---- Attempt recording tests ----
+
+    #[tokio::test]
+    async fn test_record_sprint_attempt_logged() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        db.upsert_sprint(&make_test_sprint(&project.id, 1, "Test"))
+            .await
+            .unwrap();
+        db.record_sprint_attempt(&project.id, 1, 66, true, 20)
+            .await
+            .unwrap();
+
+        let history = db.get_project_history(&project.id, 10).await.unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].score_percent, 66);
+        assert!(history[0].passed);
+        assert_eq!(history[0].xp_earned, 20);
+    }
+
+    #[tokio::test]
+    async fn test_record_sprint_attempt_updates_sprint_status() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        db.upsert_sprint(&make_test_sprint(&project.id, 1, "Test"))
+            .await
+            .unwrap();
+        db.record_sprint_attempt(&project.id, 1, 100, true, 30)
+            .await
+            .unwrap();
+
+        let sprint = db.get_sprint(&project.id, 1).await.unwrap().unwrap();
+        assert_eq!(sprint.status, "passed");
+        assert_eq!(sprint.best_score, Some(100));
+        assert_eq!(sprint.attempts, 1);
+    }
+
+    #[tokio::test]
+    async fn test_record_sprint_attempt_fail_keeps_pending() {
+        let (db, project, _dir) = setup_db_with_project().await;
+        db.upsert_sprint(&make_test_sprint(&project.id, 1, "Test"))
+            .await
+            .unwrap();
+        db.record_sprint_attempt(&project.id, 1, 33, false, 0)
+            .await
+            .unwrap();
+
+        let sprint = db.get_sprint(&project.id, 1).await.unwrap().unwrap();
+        assert_eq!(sprint.status, "pending");
+        assert_eq!(sprint.best_score, Some(33));
+    }
+
+    // ---- Settings tests ----
+
+    #[tokio::test]
+    async fn test_set_and_get_setting_roundtrip() {
+        let (db, _dir) = setup_db().await;
+        db.set_setting("theme", "dark").await.unwrap();
+        let value = db.get_setting("theme").await.unwrap();
+        assert_eq!(value, Some("dark".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_get_setting_returns_none_for_unknown() {
+        let (db, _dir) = setup_db().await;
+        let value = db.get_setting("nonexistent_key").await.unwrap();
+        assert!(value.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_set_setting_overwrites() {
+        let (db, _dir) = setup_db().await;
+        db.set_setting("theme", "light").await.unwrap();
+        db.set_setting("theme", "dark").await.unwrap();
+        let value = db.get_setting("theme").await.unwrap();
+        assert_eq!(value, Some("dark".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_is_sound_enabled_default_true() {
+        let (db, _dir) = setup_db().await;
+        let enabled = db.is_sound_enabled().await.unwrap();
+        assert!(enabled);
+    }
+
+    // ---- Knowledge Identity tests ----
+
+    #[tokio::test]
+    async fn test_get_knowledge_id_after_init() {
+        let (db, _dir) = setup_db().await;
+        let identity = db.get_knowledge_id().await.unwrap();
+        assert_eq!(identity.id, 1);
+        assert!(!identity.knowledge_id.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_set_display_name_retrievable() {
+        let (db, _dir) = setup_db().await;
+        db.set_display_name("TestUser").await.unwrap();
+        let identity = db.get_knowledge_id().await.unwrap();
+        assert_eq!(identity.display_name, Some("TestUser".to_string()));
+    }
+
+    // ---- Question stats tests ----
+
+    #[tokio::test]
+    async fn test_update_question_stats_correct() {
+        let (db, _dir) = setup_db().await;
+        db.update_question_stats(true).await.unwrap();
+        db.update_question_stats(true).await.unwrap();
+        let profile = db.get_profile().await.unwrap();
+        assert_eq!(profile.questions_passed, 2);
+        assert_eq!(profile.questions_attempted, 2);
+        assert_eq!(profile.current_combo, 2);
+    }
+
+    #[tokio::test]
+    async fn test_update_question_stats_wrong_resets_combo() {
+        let (db, _dir) = setup_db().await;
+        db.update_question_stats(true).await.unwrap();
+        db.update_question_stats(true).await.unwrap();
+        db.update_question_stats(false).await.unwrap();
+        let profile = db.get_profile().await.unwrap();
+        assert_eq!(profile.questions_passed, 2);
+        assert_eq!(profile.questions_attempted, 3);
+        assert_eq!(profile.current_combo, 0);
+        assert_eq!(profile.best_combo, 2);
+    }
+
+    // ---- History tests ----
+
+    #[tokio::test]
+    async fn test_get_history_returns_across_projects() {
+        let (db, _dir) = setup_db().await;
+        let p1 = db
+            .get_or_create_project("/tmp/p1", "p1")
+            .await
+            .unwrap();
+        let p2 = db
+            .get_or_create_project("/tmp/p2", "p2")
+            .await
+            .unwrap();
+        db.upsert_sprint(&make_test_sprint(&p1.id, 1, "T1"))
+            .await
+            .unwrap();
+        db.upsert_sprint(&make_test_sprint(&p2.id, 1, "T2"))
+            .await
+            .unwrap();
+        db.record_sprint_attempt(&p1.id, 1, 80, true, 20)
+            .await
+            .unwrap();
+        db.record_sprint_attempt(&p2.id, 1, 60, true, 15)
+            .await
+            .unwrap();
+
+        let history = db.get_history(10).await.unwrap();
+        assert_eq!(history.len(), 2);
     }
 }
 

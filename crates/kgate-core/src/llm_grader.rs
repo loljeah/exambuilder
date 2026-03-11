@@ -567,7 +567,7 @@ mod tests {
         // "executing" should match "execute" due to stemming
         let result = grader.grade("When executing the function", &key);
 
-        assert!(result.matched_concepts.len() >= 1);
+        assert!(!result.matched_concepts.is_empty());
     }
 
     #[test]
@@ -621,7 +621,7 @@ mod tests {
             &key,
         );
 
-        assert!(result.matched_concepts.len() >= 1);
+        assert!(!result.matched_concepts.is_empty());
     }
 
     #[test]
