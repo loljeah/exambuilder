@@ -33,11 +33,11 @@ pub async fn cmd_exam_list(db: &Database, project_id: &str) -> Result<()> {
         };
         let id_label = s.sprint_id.as_deref().map(|id| format!(" [{}]", id)).unwrap_or_default();
         println!(
-            "  {} Sprint {}: {} — {}{}",
+            "  {} Sprint {}: {} — {} XP{}",
             status,
             s.sprint_number,
             s.topic,
-            format!("{} XP", s.xp_available),
+            s.xp_available,
             style(id_label).dim()
         );
     }
@@ -859,7 +859,7 @@ pub async fn cmd_exam_take_voice(db: &Database, project_id: &str, sprint_number:
 
         // Get answer (voice with keyboard fallback)
         let answer = get_voice_answer(
-            &tts,
+            tts.as_ref(),
             &stt,
             stt_available,
             &voice_config,
@@ -1076,7 +1076,7 @@ pub async fn cmd_exam_take_voice(db: &Database, project_id: &str, sprint_number:
 
 /// Get answer via voice with keyboard fallback
 fn get_voice_answer(
-    tts: &Box<dyn TextToSpeech + Send>,
+    tts: &(dyn TextToSpeech + Send),
     stt: &WhisperStt,
     stt_available: bool,
     config: &VoiceConfig,
@@ -1097,9 +1097,7 @@ fn get_voice_answer(
 
         println!(
             "{}",
-            style(format!(
-                "🎤 Listening... (say 1, 2, 3, or 4, or press 1-4)"
-            ))
+            style("🎤 Listening... (say 1, 2, 3, or 4, or press 1-4)")
             .dim()
         );
 

@@ -31,6 +31,7 @@ impl EspeakTts {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_defaults() -> Self {
         Self {
             voice: "en-us".to_string(),
@@ -128,6 +129,7 @@ impl PiperTts {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_defaults() -> Self {
         Self {
             model: resolve_piper_model(&None),
@@ -241,6 +243,7 @@ impl KokoroTts {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_defaults() -> Self {
         Self {
             voice: "af_bella".to_string(),

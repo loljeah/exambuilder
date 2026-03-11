@@ -10,6 +10,7 @@ use super::config::{CalibrationConfig, SttConfig};
 /// Speech-to-text trait
 pub trait SpeechToText {
     /// Listen for speech and return transcription
+    #[allow(dead_code)]
     fn listen(&self) -> Result<String>;
 
     /// Listen with timeout, returns None on timeout
@@ -21,6 +22,7 @@ pub struct WhisperStt {
     model: String,
     language: String,
     sample_rate: u32,
+    #[allow(dead_code)]
     max_wait_ms: u32,
     mic_device: Option<String>,
 }
@@ -36,6 +38,7 @@ impl WhisperStt {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_defaults() -> Self {
         Self {
             model: "base.en".to_string(),
@@ -176,6 +179,7 @@ pub fn parse_voice_answer(text: &str) -> Option<char> {
 }
 
 /// Create an STT instance based on config
+#[allow(dead_code)]
 pub fn create_stt(
     stt_config: &SttConfig,
     calib_config: &CalibrationConfig,

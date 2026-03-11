@@ -127,7 +127,7 @@ impl SpacedRepetitionEngine {
         let avg_ef = total_ef / domain_items.len() as f64;
 
         // Convert EF (1.3 - 2.5+) to percentage (0-100)
-        ((avg_ef - 1.3) / 1.7 * 100.0).min(100.0).max(0.0)
+        ((avg_ef - 1.3) / 1.7 * 100.0).clamp(0.0, 100.0)
     }
 
     /// Get review statistics

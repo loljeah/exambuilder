@@ -5,6 +5,7 @@ use rodio::{Decoder, OutputStream, Sink};
 // Embedded sound data (short sine wave tones generated procedurally)
 // These are placeholder PCM data - will be replaced with actual sound files
 
+#[allow(dead_code)]
 pub fn sounds_dir() -> PathBuf {
     dirs::home_dir()
         .expect("No home directory")
@@ -22,6 +23,7 @@ pub fn play_wrong() {
     play_tone(220.0, 0.2); // A3
 }
 
+#[allow(dead_code)]
 pub fn play_levelup() {
     // Ascending fanfare
     std::thread::spawn(|| {
@@ -114,6 +116,7 @@ fn play_tone(freq: f32, duration_secs: f32) {
 }
 
 // Check if sounds are enabled in settings
+#[allow(dead_code)]
 pub fn is_enabled() -> bool {
     // TODO: read from database settings
     true

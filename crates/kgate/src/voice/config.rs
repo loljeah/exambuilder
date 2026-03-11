@@ -200,6 +200,7 @@ impl VoiceConfig {
     }
 
     /// Check if aplay is available for audio playback
+    #[allow(dead_code)]
     pub fn has_aplay() -> bool {
         which::which("aplay").is_ok()
     }

@@ -80,8 +80,7 @@ pub fn parse_exam_file(content: &str) -> Result<ParsedExam> {
             let mut pass = 70;
             let mut xp = 30;
 
-            for j in (i + 1)..std::cmp::min(i + 5, lines.len()) {
-                let look = lines[j];
+            for look in lines.iter().skip(i + 1).take(4) {
                 if look.contains("Target:") {
                     if let Some(mins) = extract_number(look, "Target:") {
                         target = mins;
@@ -293,13 +292,16 @@ fn parse_question_header(line: &str) -> Option<ParsedQuestion> {
     })
 }
 
-fn parse_answer_line(line: &str, lines: &[&str], idx: usize) -> Option<(i32, i32, char, Option<String>, Option<String>, Option<String>)> {
+/// Parsed answer line result
+type AnswerLineResult = (i32, i32, char, Option<String>, Option<String>, Option<String>);
+
+fn parse_answer_line(line: &str, lines: &[&str], idx: usize) -> Option<AnswerLineResult> {
     // **Q1. Answer: B** — 10 XP
     // Look for sprint context from preceding ### Sprint header
     let mut sprint_num = 1;
-    for j in (0..idx).rev() {
-        if lines[j].contains("### Sprint") {
-            if let Some(n) = extract_number(lines[j], "Sprint") {
+    for prev_line in lines[..idx].iter().rev() {
+        if prev_line.contains("### Sprint") {
+            if let Some(n) = extract_number(prev_line, "Sprint") {
                 sprint_num = n;
                 break;
             }
@@ -322,8 +324,7 @@ fn parse_answer_line(line: &str, lines: &[&str], idx: usize) -> Option<(i32, i32
     let mut explanation = None;
     let mut extra = None;
 
-    for j in (idx + 1)..std::cmp::min(idx + 10, lines.len()) {
-        let l = lines[j];
+    for l in lines.iter().skip(idx + 1).take(9) {
         if l.starts_with("Hint:") {
             hint = Some(l.trim_start_matches("Hint:").trim().to_string());
         }

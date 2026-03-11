@@ -390,70 +390,59 @@ impl Database {
         let profile = self.get_profile().await?;
 
         // First sprint
-        if profile.sprints_passed == 1 {
-            if self.unlock_badge("first_sprint", Some(project_id)).await? {
+        if profile.sprints_passed == 1
+            && self.unlock_badge("first_sprint", Some(project_id)).await? {
                 awarded.push("first_sprint".to_string());
             }
-        }
 
         // Streak badges
-        if profile.current_streak >= 3 {
-            if self.unlock_badge("streak_3", None).await? {
+        if profile.current_streak >= 3
+            && self.unlock_badge("streak_3", None).await? {
                 awarded.push("streak_3".to_string());
             }
-        }
-        if profile.current_streak >= 5 {
-            if self.unlock_badge("streak_5", None).await? {
+        if profile.current_streak >= 5
+            && self.unlock_badge("streak_5", None).await? {
                 awarded.push("streak_5".to_string());
             }
-        }
-        if profile.current_streak >= 10 {
-            if self.unlock_badge("streak_10", None).await? {
+        if profile.current_streak >= 10
+            && self.unlock_badge("streak_10", None).await? {
                 awarded.push("streak_10".to_string());
             }
-        }
 
         // Level badges
-        if profile.level >= 2 {
-            if self.unlock_badge("level_2", None).await? {
+        if profile.level >= 2
+            && self.unlock_badge("level_2", None).await? {
                 awarded.push("level_2".to_string());
             }
-        }
-        if profile.level >= 3 {
-            if self.unlock_badge("level_3", None).await? {
+        if profile.level >= 3
+            && self.unlock_badge("level_3", None).await? {
                 awarded.push("level_3".to_string());
             }
-        }
-        if profile.level >= 5 {
-            if self.unlock_badge("level_5", None).await? {
+        if profile.level >= 5
+            && self.unlock_badge("level_5", None).await? {
                 awarded.push("level_5".to_string());
             }
-        }
 
         // XP badges
-        if profile.total_xp >= 100 {
-            if self.unlock_badge("xp_100", None).await? {
+        if profile.total_xp >= 100
+            && self.unlock_badge("xp_100", None).await? {
                 awarded.push("xp_100".to_string());
             }
-        }
-        if profile.total_xp >= 500 {
-            if self.unlock_badge("xp_500", None).await? {
+        if profile.total_xp >= 500
+            && self.unlock_badge("xp_500", None).await? {
                 awarded.push("xp_500".to_string());
             }
-        }
-        if profile.total_xp >= 1000 {
-            if self.unlock_badge("xp_1000", None).await? {
+        if profile.total_xp >= 1000
+            && self.unlock_badge("xp_1000", None).await? {
                 awarded.push("xp_1000".to_string());
             }
-        }
 
         // Project cleared
         let sprints = self.get_sprints(project_id).await?;
-        if !sprints.is_empty() && sprints.iter().all(|s| s.status == "passed") {
-            if self.unlock_badge("project_clear", Some(project_id)).await? {
+        if !sprints.is_empty() && sprints.iter().all(|s| s.status == "passed")
+            && self.unlock_badge("project_clear", Some(project_id)).await? {
                 awarded.push("project_clear".to_string());
             }
-        }
 
         Ok(awarded)
     }
@@ -579,6 +568,7 @@ impl Database {
     }
 
     // Collected Questions
+    #[allow(clippy::too_many_arguments)]
     pub async fn collect_question(
         &self,
         project_id: &str,
@@ -670,21 +660,18 @@ impl Database {
         let mut unlocked = Vec::new();
         let count = self.count_collected().await?;
 
-        if count >= 10 {
-            if self.unlock_achievement("collector_10", None).await? {
+        if count >= 10
+            && self.unlock_achievement("collector_10", None).await? {
                 unlocked.push("collector_10".to_string());
             }
-        }
-        if count >= 50 {
-            if self.unlock_achievement("collector_50", None).await? {
+        if count >= 50
+            && self.unlock_achievement("collector_50", None).await? {
                 unlocked.push("collector_50".to_string());
             }
-        }
-        if count >= 100 {
-            if self.unlock_achievement("collector_100", None).await? {
+        if count >= 100
+            && self.unlock_achievement("collector_100", None).await? {
                 unlocked.push("collector_100".to_string());
             }
-        }
 
         // Check domain master
         let domains = self.get_domains().await?;
@@ -702,11 +689,10 @@ impl Database {
 
         // Check bridge builder
         let connections = self.get_domain_connections().await?;
-        if connections.len() >= 5 {
-            if self.unlock_achievement("bridge_builder", None).await? {
+        if connections.len() >= 5
+            && self.unlock_achievement("bridge_builder", None).await? {
                 unlocked.push("bridge_builder".to_string());
             }
-        }
 
         Ok(unlocked)
     }
@@ -849,6 +835,7 @@ impl Database {
     // ============================================
 
     /// Add question to domain catalog
+    #[allow(clippy::too_many_arguments)]
     pub async fn add_to_domain_catalog(
         &self,
         domain: &str,

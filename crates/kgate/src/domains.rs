@@ -17,7 +17,7 @@ struct DomainsFile {
 }
 
 /// Global domain definitions loaded from domains.toml
-pub static DOMAINS: Lazy<HashMap<String, DomainDef>> = Lazy::new(|| load_domains());
+pub static DOMAINS: Lazy<HashMap<String, DomainDef>> = Lazy::new(load_domains);
 
 fn domains_file_path() -> PathBuf {
     // First check ~/.kgate/domains.toml (user override)

@@ -38,7 +38,7 @@ pub fn grade_sprint(sprint: &ParsedSprint, answers: &[char], attempt: i32) -> Sp
 
     for (i, question) in sprint.questions.iter().enumerate() {
         let user_answer = answers.get(i).copied().unwrap_or(' ');
-        let correct = user_answer.to_ascii_uppercase() == question.answer.to_ascii_uppercase();
+        let correct = user_answer.eq_ignore_ascii_case(&question.answer);
 
         let q_xp = if correct { question.xp } else { 0 };
         if correct {

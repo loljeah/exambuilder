@@ -82,31 +82,12 @@ pub struct SprintSuggestion {
 }
 
 /// Main analyzer struct
-pub struct CodebaseAnalyzer {
-    patterns: AnalysisPatterns,
-}
-
-/// Pattern definitions for code analysis
-struct AnalysisPatterns {
-    rust_patterns: Vec<PatternDef>,
-    nix_patterns: Vec<PatternDef>,
-    python_patterns: Vec<PatternDef>,
-    docker_patterns: Vec<PatternDef>,
-    generic_patterns: Vec<PatternDef>,
-}
-
-struct PatternDef {
-    regex: regex::Regex,
-    element_type: ElementType,
-    complexity: Complexity,
-    question_template: &'static str,
-}
+#[derive(Default)]
+pub struct CodebaseAnalyzer;
 
 impl CodebaseAnalyzer {
     pub fn new() -> Self {
-        Self {
-            patterns: AnalysisPatterns::default(),
-        }
+        Self
     }
 
     /// Analyze a project directory and return findings
@@ -368,8 +349,6 @@ impl CodebaseAnalyzer {
 
             let complexity = if is_async || context.contains("yield") {
                 Complexity::Medium
-            } else if name.starts_with('_') {
-                Complexity::Simple
             } else {
                 Complexity::Simple
             };
@@ -599,7 +578,7 @@ impl CodebaseAnalyzer {
         sprints
     }
 
-    fn generate_questions_for_domain(&self, domain: &str, elements: &[&CodeElement]) -> Vec<GeneratedQuestion> {
+    fn generate_questions_for_domain(&self, _domain: &str, elements: &[&CodeElement]) -> Vec<GeneratedQuestion> {
         let mut questions = Vec::new();
 
         for (i, elem) in elements.iter().enumerate().take(3) {
@@ -610,7 +589,7 @@ impl CodebaseAnalyzer {
         questions
     }
 
-    fn element_to_question(&self, elem: &CodeElement, q_num: usize) -> GeneratedQuestion {
+    fn element_to_question(&self, elem: &CodeElement, _q_num: usize) -> GeneratedQuestion {
         let (tier, difficulty, xp) = match elem.complexity {
             Complexity::Simple => ("RECALL", "Easy", 10),
             Complexity::Medium => ("COMPREHENSION", "Medium", 10),
@@ -723,7 +702,7 @@ impl CodebaseAnalyzer {
 
     fn generate_nix_service_question(&self, elem: &CodeElement) -> (String, Vec<String>, char, String, String) {
         let service_name = elem.name.split('.').nth(1).unwrap_or(&elem.name);
-        let is_enabled = elem.name.contains("true");
+        let _is_enabled = elem.name.contains("true");
 
         (
             format!("What happens when `services.{}.enable = true`?", service_name),
@@ -754,9 +733,9 @@ impl CodebaseAnalyzer {
         )
     }
 
-    fn generate_docker_question(&self, elem: &CodeElement) -> (String, Vec<String>, char, String, String) {
+    fn generate_docker_question(&self, _elem: &CodeElement) -> (String, Vec<String>, char, String, String) {
         (
-            format!("What does this Docker configuration define?"),
+            "What does this Docker configuration define?".to_string(),
             vec![
                 format!("A) A container service"),
                 format!("B) A network bridge"),
@@ -825,24 +804,6 @@ impl CodebaseAnalyzer {
                 }
             }
         }
-    }
-}
-
-impl Default for AnalysisPatterns {
-    fn default() -> Self {
-        Self {
-            rust_patterns: Vec::new(),
-            nix_patterns: Vec::new(),
-            python_patterns: Vec::new(),
-            docker_patterns: Vec::new(),
-            generic_patterns: Vec::new(),
-        }
-    }
-}
-
-impl Default for CodebaseAnalyzer {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

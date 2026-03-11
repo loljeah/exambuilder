@@ -81,7 +81,7 @@ impl HarvestedQuestion {
         let id = format!(
             "{}:{}:{}",
             project,
-            q.source_file.split('/').last().unwrap_or("unknown"),
+            q.source_file.split('/').next_back().unwrap_or("unknown"),
             q.source_line
         );
 
@@ -301,7 +301,7 @@ impl QuestionCatalog {
     /// Infer topic from question content
     fn infer_topic(q: &HarvestedQuestion) -> String {
         // Use source file name as a topic hint
-        let file_name = q.source_file.split('/').last().unwrap_or("unknown");
+        let file_name = q.source_file.split('/').next_back().unwrap_or("unknown");
         let file_stem = file_name.trim_end_matches(".rs")
             .trim_end_matches(".nix")
             .trim_end_matches(".py")
@@ -401,7 +401,7 @@ impl QuestionCatalog {
     /// Save catalog to JSON file
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         let json = serde_json::to_string_pretty(self)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
         std::fs::write(path, json)
     }
 
@@ -409,7 +409,7 @@ impl QuestionCatalog {
     pub fn load(path: &Path) -> std::io::Result<Self> {
         let json = std::fs::read_to_string(path)?;
         serde_json::from_str(&json)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(std::io::Error::other)
     }
 }
 

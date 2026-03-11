@@ -39,6 +39,7 @@ pub fn scan_directory(root: &Path, max_depth: usize) -> Result<ScanResult> {
     })
 }
 
+#[allow(clippy::only_used_in_recursion)]
 fn scan_recursive(
     root: &Path,
     current: &Path,

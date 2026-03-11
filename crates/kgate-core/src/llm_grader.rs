@@ -288,6 +288,7 @@ impl LocalGrader {
     }
 
     /// Levenshtein distance
+    #[allow(clippy::needless_range_loop)]
     fn levenshtein(&self, a: &str, b: &str) -> usize {
         let a_chars: Vec<char> = a.chars().collect();
         let b_chars: Vec<char> = b.chars().collect();
@@ -297,8 +298,8 @@ impl LocalGrader {
 
         let mut matrix = vec![vec![0usize; len_b + 1]; len_a + 1];
 
-        for i in 0..=len_a {
-            matrix[i][0] = i;
+        for (i, row) in matrix.iter_mut().enumerate().take(len_a + 1) {
+            row[0] = i;
         }
         for j in 0..=len_b {
             matrix[0][j] = j;
