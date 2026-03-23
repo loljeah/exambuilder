@@ -49,6 +49,19 @@ func main() {
 		cmdImport(cfg, args)
 	case "quit":
 		cmdQuit(cfg)
+	// New P1 commands
+	case "review":
+		cmdReview(cfg, args)
+	case "stats":
+		cmdStats(cfg, args)
+	case "journal":
+		cmdJournal(cfg, args)
+	case "hard":
+		cmdHard(cfg, args)
+	case "knowledge":
+		cmdKnowledge(cfg)
+	case "health":
+		cmdHealth(cfg)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -72,7 +85,19 @@ Commands:
   sprints             List sprints for active project
   take <sprint>       Take an exam interactively
   profile             Show profile (XP, level, streak)
+  import <file>       Import an exam file
+
+Analytics:
+  review [limit]      Show knowledge items due for review
+  stats [week|date]   Show learning statistics
+  journal [limit]     Show activity log
+  hard [limit]        Show hardest questions
+  knowledge           Show knowledge mastery overview
+
+System:
+  health              Check daemon health
   quit                Stop the daemon
+  help                Show this help
 
 Options:
   --voice             Enable voice mode (TTS reads questions)
@@ -420,4 +445,360 @@ func normalizeAnswer(input string) string {
 	}
 
 	return input
+}
+
+// ============================================================================
+// P1 Analytics Commands
+// ============================================================================
+
+// KnowledgeItem represents a concept due for review
+type KnowledgeItem struct {
+	ID           string  `json:"id"`
+	Concept      string  `json:"concept"`
+	Category     string  `json:"category"`
+	MasteryScore float64 `json:"mastery_score"`
+	Status       string  `json:"status"`
+	NextReview   string  `json:"next_review"`
+	IntervalDays int     `json:"interval_days"`
+}
+
+func cmdReview(cfg *config.Config, args []string) {
+	cmd := "review"
+	if len(args) > 0 {
+		cmd += " " + args[0]
+	}
+	resp := sendCommand(cfg, cmd)
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	data := resp[3:]
+	if data == "no items due for review" {
+		fmt.Println("No knowledge items due for review")
+		return
+	}
+
+	var items []KnowledgeItem
+	if err := json.Unmarshal([]byte(data), &items); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	fmt.Println("Knowledge items due for review:")
+	fmt.Println("┌───────────────────────────────┬────────────┬─────────┬──────────────┐")
+	fmt.Println("│ Concept                       │ Category   │ Mastery │ Due          │")
+	fmt.Println("├───────────────────────────────┼────────────┼─────────┼──────────────┤")
+	for _, item := range items {
+		concept := truncate(item.Concept, 29)
+		category := truncate(item.Category, 10)
+		mastery := fmt.Sprintf("%.0f%%", item.MasteryScore*100)
+		due := formatDue(item.NextReview)
+		fmt.Printf("│ %-29s │ %-10s │ %6s  │ %-12s │\n", concept, category, mastery, due)
+	}
+	fmt.Println("└───────────────────────────────┴────────────┴─────────┴──────────────┘")
+}
+
+// DailyStat represents statistics for a day
+type DailyStat struct {
+	Date             string `json:"date"`
+	SessionsCount    int    `json:"sessions_count"`
+	SprintsAttempted int    `json:"sprints_attempted"`
+	SprintsPassed    int    `json:"sprints_passed"`
+	QuestionsTotal   int    `json:"questions_total"`
+	QuestionsCorrect int    `json:"questions_correct"`
+	XPEarned         int    `json:"xp_earned"`
+	DebtAdded        int    `json:"debt_added"`
+	DebtCleared      int    `json:"debt_cleared"`
+	StreakMaintained bool   `json:"streak_maintained"`
+}
+
+func cmdStats(cfg *config.Config, args []string) {
+	cmd := "stats"
+	if len(args) > 0 {
+		cmd += " " + args[0]
+	}
+	resp := sendCommand(cfg, cmd)
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	data := resp[3:]
+	if data == "no stats for this period" {
+		fmt.Println("No stats available for this period")
+		return
+	}
+
+	var stats []DailyStat
+	if err := json.Unmarshal([]byte(data), &stats); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	// Aggregate if multiple days
+	if len(stats) == 1 {
+		s := stats[0]
+		passRate := 0
+		if s.SprintsAttempted > 0 {
+			passRate = (s.SprintsPassed * 100) / s.SprintsAttempted
+		}
+		accuracy := 0
+		if s.QuestionsTotal > 0 {
+			accuracy = (s.QuestionsCorrect * 100) / s.QuestionsTotal
+		}
+
+		fmt.Printf("Stats for %s:\n", s.Date)
+		fmt.Printf("  Sessions: %d\n", s.SessionsCount)
+		fmt.Printf("  Sprints: %d attempted, %d passed (%d%%)\n", s.SprintsAttempted, s.SprintsPassed, passRate)
+		fmt.Printf("  Questions: %d answered, %d correct (%d%%)\n", s.QuestionsTotal, s.QuestionsCorrect, accuracy)
+		fmt.Printf("  XP earned: %d\n", s.XPEarned)
+		fmt.Printf("  Debt: +%d added, -%d cleared\n", s.DebtAdded, s.DebtCleared)
+	} else {
+		// Multiple days - show summary
+		fmt.Println("Stats for period:")
+		fmt.Println("┌────────────┬──────────┬─────────┬───────┬─────────┐")
+		fmt.Println("│ Date       │ Sprints  │ Correct │ XP    │ Streak  │")
+		fmt.Println("├────────────┼──────────┼─────────┼───────┼─────────┤")
+		for _, s := range stats {
+			passInfo := fmt.Sprintf("%d/%d", s.SprintsPassed, s.SprintsAttempted)
+			accuracy := 0
+			if s.QuestionsTotal > 0 {
+				accuracy = (s.QuestionsCorrect * 100) / s.QuestionsTotal
+			}
+			streak := "✗"
+			if s.StreakMaintained {
+				streak = "✓"
+			}
+			fmt.Printf("│ %-10s │ %8s │ %6d%% │ %5d │ %7s │\n", s.Date, passInfo, accuracy, s.XPEarned, streak)
+		}
+		fmt.Println("└────────────┴──────────┴─────────┴───────┴─────────┘")
+	}
+}
+
+// JournalEntry represents an activity log entry
+type JournalEntry struct {
+	ID        string `json:"id"`
+	Timestamp string `json:"timestamp"`
+	EventType string `json:"event_type"`
+	ProjectID string `json:"project_id,omitempty"`
+	SprintID  string `json:"sprint_id,omitempty"`
+	Payload   string `json:"payload"`
+}
+
+func cmdJournal(cfg *config.Config, args []string) {
+	cmd := "journal"
+	if len(args) > 0 {
+		cmd += " " + strings.Join(args, " ")
+	}
+	resp := sendCommand(cfg, cmd)
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	data := resp[3:]
+	if data == "no journal entries" {
+		fmt.Println("No activity recorded yet")
+		return
+	}
+
+	var entries []JournalEntry
+	if err := json.Unmarshal([]byte(data), &entries); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	fmt.Println("Recent activity:")
+	for _, e := range entries {
+		ts := formatTimestamp(e.Timestamp)
+		desc := formatEventPayload(e.EventType, e.Payload)
+		fmt.Printf("  %s %-18s %s\n", ts, e.EventType, desc)
+	}
+}
+
+// QuestionStat represents statistics for a question
+type QuestionStat struct {
+	SprintID    string  `json:"sprint_id"`
+	SprintNum   int     `json:"sprint_number"`
+	QuestionNum int     `json:"question_number"`
+	Attempts    int     `json:"attempts"`
+	Correct     int     `json:"correct"`
+	Accuracy    float64 `json:"accuracy"`
+}
+
+func cmdHard(cfg *config.Config, args []string) {
+	cmd := "hard"
+	if len(args) > 0 {
+		cmd += " " + args[0]
+	}
+	resp := sendCommand(cfg, cmd)
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	data := resp[3:]
+	if data == "no question stats yet" {
+		fmt.Println("No question statistics available yet")
+		return
+	}
+
+	var questions []QuestionStat
+	if err := json.Unmarshal([]byte(data), &questions); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	fmt.Println("Hardest questions (by accuracy):")
+	for _, q := range questions {
+		fmt.Printf("  Sprint %d Q%d: %.0f%% (%d/%d correct)\n",
+			q.SprintNum, q.QuestionNum, q.Accuracy*100, q.Correct, q.Attempts)
+	}
+}
+
+// KnowledgeStats represents mastery overview
+type KnowledgeStats struct {
+	Total    int `json:"total"`
+	Unseen   int `json:"unseen"`
+	Learning int `json:"learning"`
+	Mastered int `json:"mastered"`
+}
+
+func cmdKnowledge(cfg *config.Config) {
+	resp := sendCommand(cfg, "knowledge")
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	var stats KnowledgeStats
+	if err := json.Unmarshal([]byte(resp[3:]), &stats); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	fmt.Println("Knowledge mastery:")
+	fmt.Printf("  Total concepts: %d\n", stats.Total)
+	if stats.Total > 0 {
+		unseenPct := (stats.Unseen * 100) / stats.Total
+		learningPct := (stats.Learning * 100) / stats.Total
+		masteredPct := (stats.Mastered * 100) / stats.Total
+		fmt.Printf("  ├── Unseen:   %d (%d%%)\n", stats.Unseen, unseenPct)
+		fmt.Printf("  ├── Learning: %d (%d%%)\n", stats.Learning, learningPct)
+		fmt.Printf("  └── Mastered: %d (%d%%)\n", stats.Mastered, masteredPct)
+	}
+}
+
+func cmdHealth(cfg *config.Config) {
+	resp := sendCommand(cfg, "health")
+	if resp == "OK" {
+		fmt.Println("Daemon is healthy")
+	} else {
+		fmt.Println("Daemon status:", resp)
+	}
+}
+
+// ============================================================================
+// Helper functions
+// ============================================================================
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-2] + ".."
+}
+
+func formatDue(dateStr string) string {
+	if dateStr == "" {
+		return "now"
+	}
+	t, err := time.Parse("2006-01-02 15:04:05", dateStr)
+	if err != nil {
+		t, err = time.Parse("2006-01-02T15:04:05Z", dateStr)
+		if err != nil {
+			return dateStr
+		}
+	}
+
+	now := time.Now()
+	diff := now.Sub(t)
+
+	if diff > 0 {
+		// Overdue
+		days := int(diff.Hours() / 24)
+		if days == 0 {
+			return "today"
+		} else if days == 1 {
+			return "1d ago"
+		}
+		return fmt.Sprintf("%dd ago", days)
+	}
+	// Future
+	days := int(-diff.Hours() / 24)
+	if days == 0 {
+		return "today"
+	} else if days == 1 {
+		return "tomorrow"
+	}
+	return fmt.Sprintf("in %dd", days)
+}
+
+func formatTimestamp(ts string) string {
+	t, err := time.Parse("2006-01-02T15:04:05Z", ts)
+	if err != nil {
+		t, err = time.Parse("2006-01-02 15:04:05", ts)
+		if err != nil {
+			return ts
+		}
+	}
+	return t.Format("15:04")
+}
+
+func formatEventPayload(eventType, payload string) string {
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(payload), &data); err != nil {
+		return ""
+	}
+
+	switch eventType {
+	case "sprint_passed":
+		xp := int(data["xp_earned"].(float64))
+		score := int(data["score"].(float64))
+		return fmt.Sprintf("%d%%, +%d XP", score, xp)
+	case "sprint_completed":
+		correct := int(data["correct"].(float64))
+		total := int(data["total"].(float64))
+		return fmt.Sprintf("%d/%d correct", correct, total)
+	case "sprint_failed":
+		score := int(data["score"].(float64))
+		return fmt.Sprintf("%d%%", score)
+	case "project_activated":
+		if name, ok := data["name"].(string); ok {
+			return name
+		}
+	case "daemon_start":
+		if ver, ok := data["version"].(string); ok {
+			return "v" + ver
+		}
+	case "xp_earned":
+		if xp, ok := data["amount"].(float64); ok {
+			return fmt.Sprintf("+%d XP", int(xp))
+		}
+	case "level_up":
+		if level, ok := data["new_level"].(float64); ok {
+			return fmt.Sprintf("Level %d!", int(level))
+		}
+	case "streak_updated":
+		if streak, ok := data["current"].(float64); ok {
+			return fmt.Sprintf("🔥 %d days", int(streak))
+		}
+	}
+	return ""
 }

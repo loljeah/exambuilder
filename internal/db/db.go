@@ -8,12 +8,27 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Connection pool settings
+const (
+	maxOpenConns    = 25
+	maxIdleConns    = 5
+	connMaxLifetime = 5 * time.Minute
+)
+
 type DB struct {
 	*sql.DB
+}
+
+// configurePool sets connection pool parameters for optimal performance
+func configurePool(db *sql.DB) {
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+	db.SetConnMaxLifetime(connMaxLifetime)
 }
 
 func Open(path string, migrationsDir string) (*DB, error) {
@@ -21,9 +36,18 @@ func Open(path string, migrationsDir string) (*DB, error) {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on")
+	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000")
 	if err != nil {
 		return nil, err
+	}
+
+	// Configure connection pool
+	configurePool(db)
+
+	// Verify connection is working
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("db ping failed: %w", err)
 	}
 
 	d := &DB{db}
@@ -123,9 +147,18 @@ func OpenWithEmbeddedMigrations(path string, migrationsFS fs.FS, subdir string) 
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on")
+	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000")
 	if err != nil {
 		return nil, err
+	}
+
+	// Configure connection pool
+	configurePool(db)
+
+	// Verify connection is working
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("db ping failed: %w", err)
 	}
 
 	d := &DB{db}

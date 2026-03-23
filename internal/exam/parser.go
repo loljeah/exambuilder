@@ -20,7 +20,7 @@ var (
 	// **Q1**: B
 	// **Q1. Answer: B**
 	// Q1: B
-	answerKeyRe      = regexp.MustCompile(`(?m)^\*?\*?Q(\d+)[.\s]*(?:Answer)?[:\s]*\*?\*?\s*([A-D])`)
+	answerKeyRe      = regexp.MustCompile(`(?m)\*?\*?Q(\d+)\*?\*?[.\s]*(?:Answer)?[:\s]*\*?\*?\s*([A-D])`)
 	codeBlockRe      = regexp.MustCompile("(?s)```[a-z]*\n(.+?)\n```")
 )
 

@@ -1,7 +1,6 @@
 package watcher
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
 	"github.com/loljeah/exambuilder/internal/exam"
+	"github.com/loljeah/exambuilder/internal/logging"
 )
 
 type Watcher struct {
@@ -41,6 +41,7 @@ func (w *Watcher) Start() error {
 	// Walk and add all directories
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			logging.Debug("watcher walk error", "path", path, "error", err)
 			return nil // Skip errors
 		}
 		if info.IsDir() {
@@ -57,7 +58,7 @@ func (w *Watcher) Start() error {
 		return err
 	}
 
-	log.Printf("watching %s for exam files", root)
+	logging.Info("watching for exam files", "root", root)
 
 	go w.watch()
 	return nil
@@ -80,7 +81,7 @@ func (w *Watcher) watch() {
 			if !ok {
 				return
 			}
-			log.Printf("watcher error: %v", err)
+			logging.Error("watcher error", "error", err)
 		}
 	}
 }
@@ -112,7 +113,7 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 		}
 	}
 
-	log.Printf("exam file changed: %s", event.Name)
+	logging.Info("exam file changed", "path", event.Name)
 
 	// Parse and import
 	w.importExamFile(event.Name)
@@ -121,17 +122,18 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 func (w *Watcher) importExamFile(path string) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("read exam file: %v", err)
+		logging.Error("read exam file failed", "path", path, "error", err)
 		return
 	}
 
 	sprints, err := exam.ParseExamFile(string(content))
 	if err != nil {
-		log.Printf("parse exam file: %v", err)
+		logging.Error("parse exam file failed", "path", path, "error", err)
 		return
 	}
 
 	if len(sprints) == 0 {
+		logging.Debug("no sprints found in file", "path", path)
 		return
 	}
 
@@ -139,24 +141,27 @@ func (w *Watcher) importExamFile(path string) {
 	projectPath := filepath.Dir(path)
 	project, err := w.db.GetOrCreateProject(projectPath)
 	if err != nil {
-		log.Printf("get project: %v", err)
+		logging.Error("get project failed", "path", projectPath, "error", err)
 		return
 	}
 
 	// Import sprints
+	imported := 0
 	for _, ps := range sprints {
 		dbSprint, err := ps.ToDBSprint(project.ID)
 		if err != nil {
-			log.Printf("convert sprint: %v", err)
+			logging.Warn("convert sprint failed", "sprint", ps.Number, "error", err)
 			continue
 		}
 
 		if err := w.db.UpsertSprint(dbSprint); err != nil {
-			log.Printf("upsert sprint: %v", err)
+			logging.Warn("upsert sprint failed", "sprint", ps.Number, "error", err)
 			continue
 		}
 
-		log.Printf("imported sprint %d: %s (%d questions)",
-			ps.Number, ps.Topic, len(ps.Questions))
+		imported++
+		logging.Debug("imported sprint", "sprint", ps.Number, "topic", ps.Topic, "questions", len(ps.Questions))
 	}
+
+	logging.Info("auto-imported exam file", "path", path, "project", project.Name, "sprints", imported)
 }

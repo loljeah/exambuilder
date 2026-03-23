@@ -119,7 +119,18 @@ func (d *DB) AddDebt(projectID, action string, weight int, description string) e
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Log to journal
+	d.LogEvent(EventDebtAdded, &projectID, nil, map[string]interface{}{
+		"action":      action,
+		"weight":      weight,
+		"description": description,
+	})
+
+	return nil
 }
 
 // ClearDebt reduces debt by amount
@@ -129,7 +140,16 @@ func (d *DB) ClearDebt(projectID string, amount int) error {
 		SET total = MAX(0, total - ?), last_updated = datetime('now')
 		WHERE project_id = ?
 	`, amount, projectID)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Log to journal
+	d.LogEvent(EventDebtCleared, &projectID, nil, map[string]interface{}{
+		"amount": amount,
+	})
+
+	return nil
 }
 
 // GetProfile returns the global profile
@@ -155,6 +175,9 @@ func (d *DB) GetProfile() (*Profile, error) {
 
 // UpdateProfile updates XP, level, and streak
 func (d *DB) UpdateProfile(xpDelta, streakDelta int, sprintPassed bool) error {
+	// Get current state for detecting level ups and streak changes
+	oldProfile, _ := d.GetProfile()
+
 	_, err := d.Exec(`
 		UPDATE profile SET
 			total_xp = total_xp + ?,
@@ -169,7 +192,38 @@ func (d *DB) UpdateProfile(xpDelta, streakDelta int, sprintPassed bool) error {
 			last_activity = datetime('now')
 		WHERE id = 1
 	`, xpDelta, xpDelta, streakDelta, streakDelta, streakDelta, streakDelta, sprintPassed)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Log events for level ups and streak changes
+	if oldProfile != nil {
+		newProfile, _ := d.GetProfile()
+		if newProfile != nil {
+			// Check for level up
+			if newProfile.Level > oldProfile.Level {
+				d.LogEvent(EventLevelUp, nil, nil, map[string]interface{}{
+					"old_level": oldProfile.Level,
+					"new_level": newProfile.Level,
+					"total_xp":  newProfile.TotalXP,
+				})
+			}
+
+			// Log streak update
+			if streakDelta > 0 {
+				d.LogEvent(EventStreakUpdated, nil, nil, map[string]interface{}{
+					"streak":      newProfile.CurrentStreak,
+					"best_streak": newProfile.BestStreak,
+				})
+			} else if streakDelta < 0 && oldProfile.CurrentStreak > 0 {
+				d.LogEvent(EventStreakBroken, nil, nil, map[string]interface{}{
+					"lost_streak": oldProfile.CurrentStreak,
+				})
+			}
+		}
+	}
+
+	return nil
 }
 
 // GetSprints returns all sprints for a project
