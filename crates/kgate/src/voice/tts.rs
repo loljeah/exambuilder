@@ -1,9 +1,11 @@
 //! Text-to-Speech implementations
 //!
-//! Supports kokoro (best quality), piper (neural), and espeak-ng (fallback)
+//! Supports piper-daemon (preferred), kokoro (best quality), piper (neural), and espeak-ng (fallback)
 
 use anyhow::Result;
 use console::style;
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
 
 use super::config::{TtsConfig, TtsEngine, VoiceConfig};
@@ -174,7 +176,6 @@ impl TextToSpeech for PiperTts {
 
             if let Ok(mut piper) = cmd.spawn() {
                 if let Some(mut stdin) = piper.stdin.take() {
-                    use std::io::Write;
                     let _ = stdin.write_all(cleaned.as_bytes());
                 }
                 if let Some(stdout) = piper.stdout.take() {
@@ -207,7 +208,6 @@ impl TextToSpeech for PiperTts {
             .spawn()?;
 
         if let Some(mut stdin) = piper.stdin.take() {
-            use std::io::Write;
             stdin.write_all(cleaned.as_bytes())?;
         }
 
@@ -227,6 +227,70 @@ impl TextToSpeech for PiperTts {
         if !piper_status.success() {
             anyhow::bail!("piper exited with {}", piper_status);
         }
+        Ok(())
+    }
+}
+
+/// Piper daemon TTS implementation (connects via Unix socket)
+pub struct PiperDaemonTts {
+    socket_path: std::path::PathBuf,
+}
+
+impl PiperDaemonTts {
+    pub fn new(_config: &TtsConfig) -> Self {
+        Self {
+            socket_path: VoiceConfig::piper_daemon_socket_path(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_defaults() -> Self {
+        Self {
+            socket_path: VoiceConfig::piper_daemon_socket_path(),
+        }
+    }
+
+    /// Check if piper-daemon socket exists
+    pub fn is_available() -> bool {
+        VoiceConfig::has_piper_daemon()
+    }
+
+    /// Send command to daemon and get response
+    fn send_command(&self, command: &str) -> Result<String> {
+        let mut stream = UnixStream::connect(&self.socket_path)?;
+        stream.write_all(format!("{}\n", command).as_bytes())?;
+        stream.flush()?;
+
+        let mut reader = BufReader::new(stream);
+        let mut response = String::new();
+        reader.read_line(&mut response)?;
+        Ok(response.trim().to_string())
+    }
+
+    /// Parse OK/ERR response
+    fn parse_response(&self, response: &str) -> Result<String> {
+        if response.starts_with("OK") {
+            Ok(response[2..].trim().to_string())
+        } else if response.starts_with("ERR") {
+            anyhow::bail!("piper-daemon error: {}", &response[3..].trim())
+        } else {
+            anyhow::bail!("unexpected piper-daemon response: {}", response)
+        }
+    }
+}
+
+impl TextToSpeech for PiperDaemonTts {
+    fn speak(&self, text: &str) -> Result<()> {
+        let cleaned = format_text_for_speech(text);
+        let response = self.send_command(&format!("speak {}", cleaned))?;
+        self.parse_response(&response)?;
+        Ok(())
+    }
+
+    fn speak_blocking(&self, text: &str) -> Result<()> {
+        let cleaned = format_text_for_speech(text);
+        let response = self.send_command(&format!("speak-blocking {}", cleaned))?;
+        self.parse_response(&response)?;
         Ok(())
     }
 }
@@ -338,6 +402,7 @@ impl TextToSpeech for KokoroTts {
 pub fn create_tts(config: &TtsConfig) -> Box<dyn TextToSpeech + Send> {
     match config.engine {
         TtsEngine::Kokoro => Box::new(KokoroTts::new(config)),
+        TtsEngine::PiperDaemon => Box::new(PiperDaemonTts::new(config)),
         TtsEngine::Piper => Box::new(PiperTts::new(config)),
         TtsEngine::EspeakNg => Box::new(EspeakTts::new(config)),
     }
@@ -352,13 +417,14 @@ fn test_tts_engine(tts: &dyn TextToSpeech) -> bool {
 
 /// Create a TTS instance with automatic fallback if configured engine isn't available.
 ///
-/// Tries the configured engine first, then falls back through: kokoro -> piper -> espeak-ng.
+/// Tries the configured engine first, then falls back through: piper-daemon -> kokoro -> piper -> espeak-ng.
 /// Each candidate is smoke-tested by actually invoking it.
 /// Returns None if no TTS engine is available at all.
 pub fn create_tts_with_fallback(config: &TtsConfig) -> Option<Box<dyn TextToSpeech + Send>> {
-    // Try configured engine first (check binary exists)
+    // Try configured engine first (check binary/socket exists)
     let configured_available = match config.engine {
         TtsEngine::Kokoro => KokoroTts::is_available(),
+        TtsEngine::PiperDaemon => PiperDaemonTts::is_available(),
         TtsEngine::Piper => PiperTts::is_available(),
         TtsEngine::EspeakNg => EspeakTts::is_available(),
     };
@@ -381,15 +447,16 @@ pub fn create_tts_with_fallback(config: &TtsConfig) -> Option<Box<dyn TextToSpee
         );
     } else {
         println!(
-            "  {} {} not found on PATH, trying fallback...",
+            "  {} {} not available, trying fallback...",
             style("⚠").yellow(),
             config.engine
         );
     }
 
-    // Fallback order: kokoro -> piper -> espeak-ng
+    // Fallback order: piper-daemon -> kokoro -> piper -> espeak-ng
     // Skip the configured engine (already tried above)
     let candidates: Vec<(&str, Box<dyn TextToSpeech + Send>)> = vec![
+        ("piper-daemon", Box::new(PiperDaemonTts::new(config))),
         ("kokoro", Box::new(KokoroTts::new(config))),
         ("piper", Box::new(PiperTts::new(config))),
         ("espeak-ng", Box::new(EspeakTts::new(config))),
@@ -399,6 +466,7 @@ pub fn create_tts_with_fallback(config: &TtsConfig) -> Option<Box<dyn TextToSpee
         // Skip if this is the engine we already tried
         let is_configured = match config.engine {
             TtsEngine::Kokoro => name == "kokoro",
+            TtsEngine::PiperDaemon => name == "piper-daemon",
             TtsEngine::Piper => name == "piper",
             TtsEngine::EspeakNg => name == "espeak-ng",
         };
@@ -406,15 +474,16 @@ pub fn create_tts_with_fallback(config: &TtsConfig) -> Option<Box<dyn TextToSpee
             continue;
         }
 
-        // Quick binary check first (avoids slow python import for kokoro)
-        let binary_exists = match name {
+        // Quick availability check first
+        let available = match name {
+            "piper-daemon" => PiperDaemonTts::is_available(),
             "kokoro" => KokoroTts::is_available(),
             "piper" => PiperTts::is_available(),
             "espeak-ng" => EspeakTts::is_available(),
             _ => false,
         };
 
-        if !binary_exists {
+        if !available {
             continue;
         }
 
@@ -429,11 +498,11 @@ pub fn create_tts_with_fallback(config: &TtsConfig) -> Option<Box<dyn TextToSpee
     }
 
     println!(
-        "  {} No TTS engine available on PATH.",
+        "  {} No TTS engine available.",
         style("✗").red()
     );
     println!(
-        "  {} Run kgate from nix-shell, or install: espeak-ng, piper, or kokoro",
+        "  {} Run piper-daemon, or install: espeak-ng, piper, or kokoro",
         style("→").dim()
     );
     None

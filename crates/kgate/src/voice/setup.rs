@@ -26,7 +26,7 @@ pub fn run_setup_wizard() -> Result<VoiceConfig> {
 
     if tts_engines.is_empty() {
         println!(
-            "{} No TTS engines found. Install espeak-ng or piper.",
+            "{} No TTS engines found. Start piper-daemon, or install espeak-ng/piper.",
             style("✗").red()
         );
         println!("  On NixOS: nix-shell -p espeak-ng");
@@ -79,6 +79,7 @@ pub fn run_setup_wizard() -> Result<VoiceConfig> {
             Some(model)
         }
     } else {
+        // piper-daemon handles voice selection via its own tray/config
         None
     };
 
@@ -255,7 +256,7 @@ pub fn test_speak(text: &str) -> Result<()> {
         }
         None => {
             println!(
-                "{} No TTS engine available. Install espeak-ng, piper, or kokoro.",
+                "{} No TTS engine available. Start piper-daemon, or install espeak-ng/piper/kokoro.",
                 style("✗").red()
             );
         }

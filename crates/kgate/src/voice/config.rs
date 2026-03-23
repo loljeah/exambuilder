@@ -50,6 +50,7 @@ fn default_length_scale() -> Option<f32> { Some(1.05) }
 pub enum TtsEngine {
     EspeakNg,
     Piper,
+    PiperDaemon,
     Kokoro,
 }
 
@@ -153,12 +154,17 @@ impl VoiceConfig {
     pub fn detect_tts_engines() -> Vec<TtsEngine> {
         let mut engines = Vec::new();
 
+        // Check for piper-daemon (preferred - socket-based, already running)
+        if Self::has_piper_daemon() {
+            engines.push(TtsEngine::PiperDaemon);
+        }
+
         // Check for kokoro (best quality)
         if which::which("kokoro-tts").is_ok() || Self::has_kokoro_python() {
             engines.push(TtsEngine::Kokoro);
         }
 
-        // Check for piper
+        // Check for piper (direct binary)
         if which::which("piper").is_ok() {
             engines.push(TtsEngine::Piper);
         }
@@ -169,6 +175,19 @@ impl VoiceConfig {
         }
 
         engines
+    }
+
+    /// Check if piper-daemon is running (socket exists)
+    pub fn has_piper_daemon() -> bool {
+        let socket_path = Self::piper_daemon_socket_path();
+        socket_path.exists()
+    }
+
+    /// Get piper-daemon socket path
+    pub fn piper_daemon_socket_path() -> std::path::PathBuf {
+        let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
+            .unwrap_or_else(|_| "/tmp".to_string());
+        std::path::PathBuf::from(runtime_dir).join("piper-daemon.sock")
     }
 
     /// Check if kokoro Python package is available
@@ -211,6 +230,7 @@ impl std::fmt::Display for TtsEngine {
         match self {
             TtsEngine::EspeakNg => write!(f, "espeak-ng"),
             TtsEngine::Piper => write!(f, "piper"),
+            TtsEngine::PiperDaemon => write!(f, "piper-daemon"),
             TtsEngine::Kokoro => write!(f, "kokoro"),
         }
     }
