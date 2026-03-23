@@ -6,9 +6,10 @@
 2. [Exam Format](#exam-format)
 3. [Grading System](#grading-system)
 4. [Voice Mode](#voice-mode)
-5. [API Reference](#api-reference)
-6. [Database Schema](#database-schema)
-7. [Security](#security)
+5. [Analytics & Journal](#analytics--journal)
+6. [API Reference](#api-reference)
+7. [Database Schema](#database-schema)
+8. [Security](#security)
 
 ---
 
@@ -217,6 +218,87 @@ Spoken answers are normalized:
 
 ---
 
+## Analytics & Journal
+
+Knowledge Gate tracks comprehensive analytics for learning insights and future features.
+
+### Activity Journal
+
+All significant events are logged with timestamps:
+
+| Event Type | Description |
+|------------|-------------|
+| daemon_start | Daemon session started |
+| daemon_stop | Daemon session ended |
+| project_activated | Project switched |
+| exam_imported | Exam file imported |
+| sprint_started | Sprint attempt begun |
+| sprint_completed | Sprint finished |
+| sprint_passed | Sprint passed |
+| sprint_failed | Sprint failed |
+| question_answered | Individual answer recorded |
+| debt_added | Knowledge debt increased |
+| debt_cleared | Knowledge debt reduced |
+| level_up | Level increased |
+| streak_updated | Streak changed |
+| streak_broken | Streak reset to 0 |
+
+### Session Tracking
+
+Each daemon run is a session with:
+- Session ID (UUID)
+- Start/end timestamps
+- Duration
+- Commands received count
+- Sprints taken/passed
+- XP earned
+
+### Knowledge Items
+
+Individual concepts are tracked for spaced repetition:
+- Concept name and category
+- Times seen/correct/incorrect
+- Mastery score (0.0-1.0)
+- SM-2 spaced repetition scheduling
+- Next review date
+
+### Question Analytics
+
+Per-question statistics:
+- Times shown/correct/incorrect
+- Average response time
+- Common wrong answers (for improving questions)
+- First/last shown timestamps
+
+### Daily Statistics
+
+Aggregated daily metrics:
+- Sessions count
+- Active time
+- Sprints attempted/passed
+- Questions answered/correct
+- XP earned
+- Debt added/cleared
+- Streak at end of day
+
+### Milestones
+
+Achievement milestones:
+- XP milestones (100, 500, 1000, 5000)
+- Streak milestones (3, 7, 30 days)
+- Sprint milestones (10, 50, 100 passed)
+- Mastery milestones (10, 50 concepts)
+- Special achievements (perfect sprint, voice mode)
+
+### Export
+
+Analytics can be exported for backup or analysis:
+- Full export: all data
+- Incremental: changes since last export
+- Journal only: activity log
+
+---
+
 ## API Reference
 
 ### Socket Protocol
@@ -368,6 +450,78 @@ ERR path not allowed
 | weight | INTEGER | Debt added |
 | description | TEXT | Details |
 | created_at | TEXT | ISO timestamp |
+
+#### journal
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Auto-increment |
+| timestamp | TEXT | ISO timestamp |
+| event_type | TEXT | Event type |
+| project_id | TEXT | FK to projects |
+| sprint_id | INTEGER | FK to sprints |
+| data_json | TEXT | Event payload |
+| session_id | TEXT | Session UUID |
+
+#### sessions
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT | UUID |
+| started_at | TEXT | ISO timestamp |
+| ended_at | TEXT | ISO timestamp |
+| duration_seconds | INTEGER | Session length |
+| commands_received | INTEGER | Command count |
+| sprints_taken | INTEGER | Sprints attempted |
+| sprints_passed | INTEGER | Sprints passed |
+| xp_earned | INTEGER | XP this session |
+| hostname | TEXT | Machine name |
+| username | TEXT | User name |
+| version | TEXT | Daemon version |
+
+#### knowledge_items
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Auto-increment |
+| project_id | TEXT | FK to projects |
+| concept | TEXT | Concept name |
+| category | TEXT | Category |
+| tier | TEXT | Bloom's tier |
+| status | TEXT | unseen/learning/mastered |
+| times_seen | INTEGER | View count |
+| times_correct | INTEGER | Correct count |
+| mastery_score | REAL | 0.0-1.0 |
+| next_review | TEXT | Next review date |
+| ease_factor | REAL | SM-2 factor |
+
+#### question_stats
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Auto-increment |
+| sprint_id | INTEGER | FK to sprints |
+| question_number | INTEGER | Question number |
+| times_shown | INTEGER | Show count |
+| times_correct | INTEGER | Correct count |
+| avg_response_time_ms | INTEGER | Average time |
+| wrong_answers_json | TEXT | Wrong answer freq |
+
+#### daily_stats
+| Column | Type | Description |
+|--------|------|-------------|
+| date | TEXT | YYYY-MM-DD |
+| sessions_count | INTEGER | Sessions |
+| sprints_attempted | INTEGER | Attempted |
+| sprints_passed | INTEGER | Passed |
+| xp_earned | INTEGER | XP |
+| streak_at_end | INTEGER | Streak |
+
+#### milestones
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT | Milestone ID |
+| name | TEXT | Display name |
+| category | TEXT | xp/streak/sprints/mastery |
+| threshold | INTEGER | Target value |
+| current_value | INTEGER | Progress |
+| unlocked | BOOLEAN | Achieved |
 
 ---
 

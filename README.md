@@ -9,11 +9,13 @@ Knowledge Gate tracks "knowledge debt" as you work on projects. When debt reache
 ### Features
 
 - **Sprint-based exams**: 3 questions per sprint, 3-5 minutes each
-- **Gamification**: XP, levels, streaks, progress tracking
+- **Gamification**: XP, levels, streaks, milestones, progress tracking
 - **Voice mode**: TTS reads questions, STT accepts spoken answers
 - **Auto-import**: File watcher detects `exam_*.md` files automatically
 - **System tray**: Visual debt indicator (green/yellow/red)
 - **ADHD-friendly**: Short sprints, instant feedback, no punishment for building
+- **Analytics**: Activity journal, per-question stats, knowledge mastery tracking
+- **Spaced repetition**: SM-2 algorithm for optimal review scheduling
 
 ## Architecture
 
@@ -135,17 +137,17 @@ tar -xzvf kgate-backup.tar.gz -C ~/
 exambuilder/
 ├── cmd/
 │   ├── kgate-daemon/     # Daemon entry point
+│   │   └── migrations/   # Embedded SQL migrations
 │   └── kgatectl/         # CLI entry point
 ├── internal/
 │   ├── config/           # Configuration
 │   ├── daemon/           # Socket server
-│   ├── db/               # SQLite layer
+│   ├── db/               # SQLite layer + analytics
 │   ├── exam/             # Parser + grader
 │   ├── tray/             # System tray
 │   ├── voice/            # TTS/STT clients
 │   └── watcher/          # File watcher
 ├── assets/               # Embedded icons
-├── migrations/           # SQL migrations
 ├── systemd/              # Service files
 ├── docs/                 # Documentation
 └── flake.nix             # Nix build

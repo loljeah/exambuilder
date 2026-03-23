@@ -6,6 +6,7 @@ require (
 	fyne.io/systray v1.11.0
 	github.com/BurntSushi/toml v1.3.2
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.22
 )
 
