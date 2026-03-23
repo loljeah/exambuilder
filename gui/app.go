@@ -655,8 +655,8 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 
 	// Grade the sprint
 	passThreshold := 60 // 2/3 correct (60%)
-	if a.cfg != nil && a.cfg.Exam.PassThreshold > 0 {
-		passThreshold = a.cfg.Exam.PassThreshold
+	if a.cfg != nil && a.cfg.Grading.PassThreshold > 0 {
+		passThreshold = a.cfg.Grading.PassThreshold
 	}
 
 	// Parse questions for grading
@@ -736,14 +736,17 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 		a.db.AddXP(result.XPEarned)
 	}
 	if result.CoinsEarned > 0 {
-		gamification.AddCoins(a.sqlDB, result.CoinsEarned, "sprint_completed")
+		gamification.AddCoins(a.sqlDB, result.CoinsEarned, "sprint_completed", fmt.Sprintf("sprint_%d", sprintNumber))
 	}
 
 	// Update daily stats
 	a.db.RecordSprintAttempt(result.Passed, result.CorrectCount, result.TotalQuestions, result.XPEarned)
 
 	// Check achievements
-	gamification.CheckAchievements(a.sqlDB, a.db)
+	stats, _ := gamification.GatherPlayerStats(a.sqlDB)
+	if stats != nil {
+		gamification.CheckAndUnlockAchievements(a.sqlDB, stats)
+	}
 
 	return result, nil
 }

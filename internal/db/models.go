@@ -330,5 +330,7 @@ type Question struct {
 }
 
 type AnswerKey struct {
-	Answers []string `json:"answers"` // ["B", "A", "C"]
+	Answers      []string `json:"answers"`      // ["B", "A", "C"]
+	Hints        []string `json:"hints"`        // Hints per question
+	Explanations []string `json:"explanations"` // Full explanations per question
 }

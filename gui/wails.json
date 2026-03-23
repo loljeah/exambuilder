@@ -6,6 +6,13 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": "./frontend/src/lib",
+  "info": {
+    "compilerVersion": "go1.22"
+  },
+  "assetdir": "./frontend/dist",
+  "wailsjsdir": "./frontend/src/lib",
+  "gobuildargs": "-tags webkit2_41",
   "author": {
     "name": "Knowledge Gate",
     "email": "kgate@local"
