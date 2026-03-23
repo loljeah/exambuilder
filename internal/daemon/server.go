@@ -15,6 +15,7 @@ import (
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
 	"github.com/loljeah/exambuilder/internal/exam"
+	"github.com/loljeah/exambuilder/internal/gamification"
 	"github.com/loljeah/exambuilder/internal/logging"
 	"github.com/loljeah/exambuilder/internal/voice"
 )
@@ -141,7 +142,7 @@ func (s *Server) handleCommand(cmd, args string) string {
 		return s.cmdSpeak(args)
 	case "import":
 		return s.cmdImport(args)
-	// New P1 commands
+	// P1 Analytics commands
 	case "review":
 		return s.cmdReview(args)
 	case "stats":
@@ -152,6 +153,29 @@ func (s *Server) handleCommand(cmd, args string) string {
 		return s.cmdHard(args)
 	case "knowledge":
 		return s.cmdKnowledge()
+	// Gamification commands
+	case "avatar":
+		return s.cmdAvatar(args)
+	case "wallet":
+		return s.cmdWallet()
+	case "shop":
+		return s.cmdShop(args)
+	case "buy":
+		return s.cmdBuy(args)
+	case "inventory":
+		return s.cmdInventory()
+	case "equip":
+		return s.cmdEquip(args)
+	case "unequip":
+		return s.cmdUnequip(args)
+	case "daily":
+		return s.cmdDaily()
+	case "challenges":
+		return s.cmdChallenges()
+	case "goals":
+		return s.cmdGoals()
+	case "achievements":
+		return s.cmdAchievements()
 	case "quit":
 		go func() {
 			s.db.EndSession()
@@ -655,5 +679,251 @@ func (s *Server) cmdKnowledge() string {
 	}
 
 	data, _ := json.Marshal(stats)
+	return "OK " + string(data)
+}
+
+// ============================================================================
+// GAMIFICATION COMMANDS
+// ============================================================================
+
+// cmdAvatar handles avatar operations: get status or set creature type
+func (s *Server) cmdAvatar(args string) string {
+	sqlDB := s.db.DB
+
+	if args == "" {
+		// Get avatar status
+		avatar, err := gamification.GetAvatar(sqlDB)
+		if err != nil {
+			logging.Info("avatar: get failed: %v", err)
+			return "ERR internal error"
+		}
+
+		data, _ := json.Marshal(avatar)
+		return "OK " + string(data)
+	}
+
+	// Set creature type: avatar set <type>
+	parts := strings.SplitN(args, " ", 2)
+	if parts[0] == "set" && len(parts) > 1 {
+		creatureType := parts[1]
+		if err := gamification.SetCreatureType(sqlDB, creatureType); err != nil {
+			logging.Info("avatar: set type failed: %v", err)
+			return "ERR " + err.Error()
+		}
+
+		// Log event
+		s.db.LogEvent("avatar_changed", nil, nil, map[string]interface{}{
+			"creature_type": creatureType,
+		})
+
+		return "OK creature set to " + creatureType
+	}
+
+	return "ERR usage: avatar [set <cat|slime|octopus|snail>]"
+}
+
+// cmdWallet returns current wallet balance and stats
+func (s *Server) cmdWallet() string {
+	sqlDB := s.db.DB
+
+	wallet, err := gamification.GetWallet(sqlDB)
+	if err != nil {
+		logging.Info("wallet: get failed: %v", err)
+		return "ERR internal error"
+	}
+
+	data, _ := json.Marshal(wallet)
+	return "OK " + string(data)
+}
+
+// cmdShop lists shop items, optionally filtered by slot
+func (s *Server) cmdShop(args string) string {
+	sqlDB := s.db.DB
+
+	// Get user level for unlock filtering
+	profile, err := s.db.GetProfile()
+	if err != nil {
+		logging.Info("shop: get profile failed: %v", err)
+		return "ERR internal error"
+	}
+
+	slot := args // empty = all slots
+	items, err := gamification.GetShopItems(sqlDB, slot, profile.Level)
+	if err != nil {
+		logging.Info("shop: get items failed: %v", err)
+		return "ERR internal error"
+	}
+
+	data, _ := json.Marshal(items)
+	return "OK " + string(data)
+}
+
+// cmdBuy purchases an item from the shop
+func (s *Server) cmdBuy(args string) string {
+	if args == "" {
+		return "ERR usage: buy <item_id>"
+	}
+
+	sqlDB := s.db.DB
+
+	// Get user level
+	profile, err := s.db.GetProfile()
+	if err != nil {
+		logging.Info("buy: get profile failed: %v", err)
+		return "ERR internal error"
+	}
+
+	if err := gamification.PurchaseItem(sqlDB, args, profile.Level); err != nil {
+		logging.Info("buy: purchase failed: %v", err)
+		return "ERR " + err.Error()
+	}
+
+	// Log event
+	s.db.LogEvent("item_purchased", nil, nil, map[string]interface{}{
+		"item_id": args,
+	})
+
+	return "OK purchased " + args
+}
+
+// cmdInventory lists owned items
+func (s *Server) cmdInventory() string {
+	sqlDB := s.db.DB
+
+	items, err := gamification.GetOwnedItems(sqlDB)
+	if err != nil {
+		logging.Info("inventory: get failed: %v", err)
+		return "ERR internal error"
+	}
+
+	data, _ := json.Marshal(items)
+	return "OK " + string(data)
+}
+
+// cmdEquip equips an item to its appropriate slot
+func (s *Server) cmdEquip(args string) string {
+	if args == "" {
+		return "ERR usage: equip <item_id>"
+	}
+
+	sqlDB := s.db.DB
+
+	if err := gamification.EquipItem(sqlDB, args); err != nil {
+		logging.Info("equip: failed: %v", err)
+		return "ERR " + err.Error()
+	}
+
+	// Log event
+	s.db.LogEvent("item_equipped", nil, nil, map[string]interface{}{
+		"item_id": args,
+	})
+
+	return "OK equipped " + args
+}
+
+// cmdUnequip removes an item from a slot
+func (s *Server) cmdUnequip(args string) string {
+	if args == "" {
+		return "ERR usage: unequip <hat|held|aura|background>"
+	}
+
+	sqlDB := s.db.DB
+
+	if err := gamification.UnequipSlot(sqlDB, args); err != nil {
+		logging.Info("unequip: failed: %v", err)
+		return "ERR " + err.Error()
+	}
+
+	return "OK unequipped " + args
+}
+
+// cmdDaily handles daily login reward
+func (s *Server) cmdDaily() string {
+	sqlDB := s.db.DB
+
+	// Get status first
+	dl, err := gamification.GetDailyLogin(sqlDB)
+	if err != nil {
+		logging.Info("daily: get status failed: %v", err)
+		return "ERR internal error"
+	}
+
+	if !dl.CanClaim {
+		// Return status without claiming
+		data, _ := json.Marshal(dl)
+		return "OK " + string(data)
+	}
+
+	// Claim reward
+	coins, err := gamification.ClaimDailyReward(sqlDB)
+	if err != nil {
+		logging.Info("daily: claim failed: %v", err)
+		return "ERR " + err.Error()
+	}
+
+	// Log event
+	s.db.LogEvent("daily_claimed", nil, nil, map[string]interface{}{
+		"coins":       coins,
+		"current_day": dl.CurrentDay + 1,
+	})
+
+	// Get updated status
+	dl, _ = gamification.GetDailyLogin(sqlDB)
+	response := map[string]interface{}{
+		"claimed":      true,
+		"coins_earned": coins,
+		"status":       dl,
+	}
+	data, _ := json.Marshal(response)
+	return "OK " + string(data)
+}
+
+// cmdChallenges returns today's daily challenges
+func (s *Server) cmdChallenges() string {
+	sqlDB := s.db.DB
+
+	challenges, err := gamification.GetDailyChallenges(sqlDB)
+	if err != nil {
+		logging.Info("challenges: get failed: %v", err)
+		return "ERR internal error"
+	}
+
+	data, _ := json.Marshal(challenges)
+	return "OK " + string(data)
+}
+
+// cmdGoals returns this week's goals
+func (s *Server) cmdGoals() string {
+	sqlDB := s.db.DB
+
+	goals, err := gamification.GetWeeklyGoals(sqlDB)
+	if err != nil {
+		logging.Info("goals: get failed: %v", err)
+		return "ERR internal error"
+	}
+
+	data, _ := json.Marshal(goals)
+	return "OK " + string(data)
+}
+
+// cmdAchievements returns all achievements with unlock status
+func (s *Server) cmdAchievements() string {
+	sqlDB := s.db.DB
+
+	achievements, err := gamification.GetAllAchievements(sqlDB)
+	if err != nil {
+		logging.Info("achievements: get failed: %v", err)
+		return "ERR internal error"
+	}
+
+	// Also get counts
+	unlocked, total, _ := gamification.GetAchievementCount(sqlDB)
+
+	response := map[string]interface{}{
+		"achievements": achievements,
+		"unlocked":     unlocked,
+		"total":        total,
+	}
+	data, _ := json.Marshal(response)
 	return "OK " + string(data)
 }

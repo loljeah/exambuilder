@@ -62,6 +62,29 @@ func main() {
 		cmdKnowledge(cfg)
 	case "health":
 		cmdHealth(cfg)
+	// Gamification commands
+	case "avatar":
+		cmdAvatar(cfg, args)
+	case "wallet":
+		cmdWallet(cfg)
+	case "shop":
+		cmdShop(cfg, args)
+	case "buy":
+		cmdBuy(cfg, args)
+	case "inventory":
+		cmdInventory(cfg)
+	case "equip":
+		cmdEquip(cfg, args)
+	case "unequip":
+		cmdUnequip(cfg, args)
+	case "daily":
+		cmdDaily(cfg)
+	case "challenges":
+		cmdChallenges(cfg)
+	case "goals":
+		cmdGoals(cfg)
+	case "achievements":
+		cmdAchievements(cfg)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -93,6 +116,19 @@ Analytics:
   journal [limit]     Show activity log
   hard [limit]        Show hardest questions
   knowledge           Show knowledge mastery overview
+
+Gamification:
+  avatar [set <type>] Show or set avatar creature (cat/slime/octopus/snail)
+  wallet              Show coin balance
+  shop [slot]         List shop items (filter by: hat/held/aura/background)
+  buy <item_id>       Purchase an item
+  inventory           Show owned items
+  equip <item_id>     Equip an item
+  unequip <slot>      Unequip slot (hat/held/aura/background)
+  daily               Check/claim daily login reward
+  challenges          Show today's challenges
+  goals               Show weekly goals
+  achievements        Show all achievements
 
 System:
   health              Check daemon health
@@ -801,4 +837,433 @@ func formatEventPayload(eventType, payload string) string {
 		}
 	}
 	return ""
+}
+
+// ============================================================================
+// Gamification Commands
+// ============================================================================
+
+// Avatar represents the companion creature
+type Avatar struct {
+	CreatureType string  `json:"creature_type"`
+	Mood         string  `json:"mood"`
+	XPMultiplier float64 `json:"xp_multiplier"`
+	LastActive   string  `json:"last_active"`
+}
+
+func cmdAvatar(cfg *config.Config, args []string) {
+	cmd := "avatar"
+	if len(args) > 0 {
+		cmd += " " + strings.Join(args, " ")
+	}
+	resp := sendCommand(cfg, cmd)
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	data := resp[3:]
+	if strings.HasPrefix(data, "creature set to") {
+		fmt.Println("Avatar updated:", data)
+		return
+	}
+
+	var avatar Avatar
+	if err := json.Unmarshal([]byte(data), &avatar); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	// Get mood emoji
+	moodEmoji := "😐"
+	switch avatar.Mood {
+	case "happy":
+		moodEmoji = "😊"
+	case "content":
+		moodEmoji = "🙂"
+	case "sad":
+		moodEmoji = "😢"
+	case "lonely":
+		moodEmoji = "😔"
+	}
+
+	// Get creature emoji
+	creatureEmoji := "🐱"
+	switch avatar.CreatureType {
+	case "slime":
+		creatureEmoji = "🟢"
+	case "octopus":
+		creatureEmoji = "🐙"
+	case "snail":
+		creatureEmoji = "🐌"
+	}
+
+	fmt.Println("╭─────────────────────────────────────╮")
+	fmt.Printf("│  %s Your %s                          │\n", creatureEmoji, strings.Title(avatar.CreatureType))
+	fmt.Println("├─────────────────────────────────────┤")
+	fmt.Printf("│  Mood: %s %-26s │\n", moodEmoji, avatar.Mood)
+	fmt.Printf("│  XP Bonus: +%.0f%%                     │\n", (avatar.XPMultiplier-1)*100)
+	fmt.Println("╰─────────────────────────────────────╯")
+}
+
+// Wallet represents coin balance
+type Wallet struct {
+	Coins         int `json:"coins"`
+	LifetimeCoins int `json:"lifetime_coins"`
+}
+
+func cmdWallet(cfg *config.Config) {
+	resp := sendCommand(cfg, "wallet")
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	var wallet Wallet
+	if err := json.Unmarshal([]byte(resp[3:]), &wallet); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	fmt.Printf("💰 Coins: %d\n", wallet.Coins)
+	fmt.Printf("   Lifetime: %d earned\n", wallet.LifetimeCoins)
+}
+
+// ShopItem represents an item in the shop
+type ShopItem struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Slot        string `json:"slot"`
+	Price       int    `json:"price"`
+	Rarity      string `json:"rarity"`
+	UnlockLevel int    `json:"unlock_level"`
+	Owned       bool   `json:"owned"`
+}
+
+func cmdShop(cfg *config.Config, args []string) {
+	cmd := "shop"
+	if len(args) > 0 {
+		cmd += " " + args[0]
+	}
+	resp := sendCommand(cfg, cmd)
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	var items []ShopItem
+	if err := json.Unmarshal([]byte(resp[3:]), &items); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	if len(items) == 0 {
+		fmt.Println("No items available")
+		return
+	}
+
+	fmt.Println("Shop Items:")
+	currentSlot := ""
+	for _, item := range items {
+		if item.Slot != currentSlot {
+			currentSlot = item.Slot
+			fmt.Printf("\n  === %s ===\n", strings.ToUpper(currentSlot))
+		}
+		status := ""
+		if item.Owned {
+			status = " [OWNED]"
+		}
+		rarityBadge := getRarityBadge(item.Rarity)
+		fmt.Printf("  %s %-20s %s %4d 🪙%s\n", rarityBadge, item.Name, item.ID, item.Price, status)
+	}
+}
+
+func getRarityBadge(rarity string) string {
+	switch rarity {
+	case "common":
+		return "⬜"
+	case "uncommon":
+		return "🟩"
+	case "rare":
+		return "🟦"
+	case "legendary":
+		return "🟨"
+	default:
+		return "⬜"
+	}
+}
+
+func cmdBuy(cfg *config.Config, args []string) {
+	if len(args) < 1 {
+		fmt.Println("usage: kgatectl buy <item_id>")
+		os.Exit(1)
+	}
+
+	resp := sendCommand(cfg, "buy "+args[0])
+	fmt.Println(resp)
+}
+
+func cmdInventory(cfg *config.Config) {
+	resp := sendCommand(cfg, "inventory")
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	var items []ShopItem
+	if err := json.Unmarshal([]byte(resp[3:]), &items); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	if len(items) == 0 {
+		fmt.Println("Your inventory is empty")
+		return
+	}
+
+	fmt.Println("Your Inventory:")
+	currentSlot := ""
+	for _, item := range items {
+		if item.Slot != currentSlot {
+			currentSlot = item.Slot
+			fmt.Printf("\n  %s:\n", strings.ToUpper(currentSlot))
+		}
+		rarityBadge := getRarityBadge(item.Rarity)
+		fmt.Printf("    %s %s (%s)\n", rarityBadge, item.Name, item.ID)
+	}
+}
+
+func cmdEquip(cfg *config.Config, args []string) {
+	if len(args) < 1 {
+		fmt.Println("usage: kgatectl equip <item_id>")
+		os.Exit(1)
+	}
+
+	resp := sendCommand(cfg, "equip "+args[0])
+	fmt.Println(resp)
+}
+
+func cmdUnequip(cfg *config.Config, args []string) {
+	if len(args) < 1 {
+		fmt.Println("usage: kgatectl unequip <hat|held|aura|background>")
+		os.Exit(1)
+	}
+
+	resp := sendCommand(cfg, "unequip "+args[0])
+	fmt.Println(resp)
+}
+
+// DailyLogin represents daily reward status
+type DailyLogin struct {
+	CurrentDay  int    `json:"current_day"`
+	LastClaim   string `json:"last_claim"`
+	TotalClaims int    `json:"total_claims"`
+	CanClaim    bool   `json:"can_claim"`
+}
+
+// DailyClaimResponse represents the response after claiming
+type DailyClaimResponse struct {
+	Claimed     bool       `json:"claimed"`
+	CoinsEarned int        `json:"coins_earned"`
+	Status      DailyLogin `json:"status"`
+}
+
+func cmdDaily(cfg *config.Config) {
+	resp := sendCommand(cfg, "daily")
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	data := resp[3:]
+
+	// Try to parse as claim response first
+	var claimResp DailyClaimResponse
+	if err := json.Unmarshal([]byte(data), &claimResp); err == nil && claimResp.Claimed {
+		fmt.Printf("🎁 Claimed daily reward: +%d 🪙\n", claimResp.CoinsEarned)
+		fmt.Printf("   Day %d of 7 | Total claims: %d\n", claimResp.Status.CurrentDay, claimResp.Status.TotalClaims)
+		return
+	}
+
+	// Parse as status
+	var status DailyLogin
+	if err := json.Unmarshal([]byte(data), &status); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	if status.CanClaim {
+		fmt.Println("Daily reward ready! Run 'kgatectl daily' again to claim.")
+	} else {
+		fmt.Printf("Daily reward already claimed today.\n")
+	}
+	fmt.Printf("   Day %d of 7 | Total claims: %d\n", status.CurrentDay, status.TotalClaims)
+
+	// Show rewards preview
+	rewards := []int{10, 15, 25, 40, 60, 85, 120}
+	fmt.Print("\n   Rewards: ")
+	for i, r := range rewards {
+		if i+1 == status.CurrentDay {
+			fmt.Printf("[%d] ", r)
+		} else if i+1 < status.CurrentDay {
+			fmt.Print("✓ ")
+		} else {
+			fmt.Printf("%d ", r)
+		}
+	}
+	fmt.Println()
+}
+
+// Challenge represents a daily challenge
+type Challenge struct {
+	ID          int    `json:"id"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Target      int    `json:"target"`
+	Progress    int    `json:"progress"`
+	RewardCoins int    `json:"reward_coins"`
+	Completed   bool   `json:"completed"`
+	Claimed     bool   `json:"claimed"`
+}
+
+func cmdChallenges(cfg *config.Config) {
+	resp := sendCommand(cfg, "challenges")
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	var challenges []Challenge
+	if err := json.Unmarshal([]byte(resp[3:]), &challenges); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	if len(challenges) == 0 {
+		fmt.Println("No daily challenges")
+		return
+	}
+
+	fmt.Println("Today's Challenges:")
+	for _, c := range challenges {
+		status := "○"
+		if c.Completed {
+			status = "✓"
+		}
+		if c.Claimed {
+			status = "💰"
+		}
+		fmt.Printf("  %s %s [%d/%d] — %d 🪙\n", status, c.Description, c.Progress, c.Target, c.RewardCoins)
+	}
+}
+
+// WeeklyGoal represents a weekly goal
+type WeeklyGoal struct {
+	ID          int    `json:"id"`
+	GoalType    string `json:"goal_type"`
+	Description string `json:"description"`
+	Target      int    `json:"target"`
+	Progress    int    `json:"progress"`
+	RewardCoins int    `json:"reward_coins"`
+	Completed   bool   `json:"completed"`
+	Claimed     bool   `json:"claimed"`
+}
+
+func cmdGoals(cfg *config.Config) {
+	resp := sendCommand(cfg, "goals")
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	var goals []WeeklyGoal
+	if err := json.Unmarshal([]byte(resp[3:]), &goals); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	if len(goals) == 0 {
+		fmt.Println("No weekly goals")
+		return
+	}
+
+	fmt.Println("Weekly Goals:")
+	for _, g := range goals {
+		status := "○"
+		if g.Completed {
+			status = "✓"
+		}
+		if g.Claimed {
+			status = "💰"
+		}
+		pct := 0
+		if g.Target > 0 {
+			pct = (g.Progress * 100) / g.Target
+		}
+		fmt.Printf("  %s %-30s %3d%% [%d/%d] — %d 🪙\n", status, g.Description, pct, g.Progress, g.Target, g.RewardCoins)
+	}
+}
+
+// Achievement represents an unlockable achievement
+type Achievement struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Icon        string `json:"icon"`
+	RewardCoins int    `json:"reward_coins"`
+	Secret      bool   `json:"secret"`
+	Unlocked    bool   `json:"unlocked"`
+	UnlockedAt  string `json:"unlocked_at"`
+}
+
+// AchievementsResponse includes achievements and counts
+type AchievementsResponse struct {
+	Achievements []Achievement `json:"achievements"`
+	Unlocked     int           `json:"unlocked"`
+	Total        int           `json:"total"`
+}
+
+func cmdAchievements(cfg *config.Config) {
+	resp := sendCommand(cfg, "achievements")
+
+	if !strings.HasPrefix(resp, "OK ") {
+		fmt.Println(resp)
+		return
+	}
+
+	var achResp AchievementsResponse
+	if err := json.Unmarshal([]byte(resp[3:]), &achResp); err != nil {
+		fmt.Println(resp)
+		return
+	}
+
+	fmt.Printf("Achievements: %d/%d unlocked\n\n", achResp.Unlocked, achResp.Total)
+
+	currentCat := ""
+	for _, a := range achResp.Achievements {
+		if a.Category != currentCat {
+			currentCat = a.Category
+			fmt.Printf("\n  === %s ===\n", strings.ToUpper(currentCat))
+		}
+
+		status := "🔒"
+		name := a.Name
+		desc := a.Description
+		if a.Unlocked {
+			status = a.Icon
+		} else if a.Secret {
+			name = "???"
+			desc = "Secret achievement"
+		}
+		fmt.Printf("  %s %-20s %s (%d 🪙)\n", status, name, truncate(desc, 30), a.RewardCoins)
+	}
 }
