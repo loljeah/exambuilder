@@ -339,3 +339,69 @@ func (d *DB) RecordAttempt(sprintID int64, answersJSON string, score int, passed
 
 	return tx.Commit()
 }
+
+// UpdateSprintAttempt updates sprint after an attempt
+func (d *DB) UpdateSprintAttempt(sprintID int64, status string, bestScore *int, answersJSON string) error {
+	if bestScore != nil {
+		_, err := d.Exec(`
+			UPDATE sprints SET
+				status = ?,
+				best_score = ?,
+				attempts = attempts + 1,
+				passed_at = CASE WHEN ? = 'passed' THEN datetime('now') ELSE passed_at END
+			WHERE id = ?
+		`, status, *bestScore, status, sprintID)
+		return err
+	}
+
+	_, err := d.Exec(`
+		UPDATE sprints SET
+			status = ?,
+			attempts = attempts + 1,
+			passed_at = CASE WHEN ? = 'passed' THEN datetime('now') ELSE passed_at END
+		WHERE id = ?
+	`, status, status, sprintID)
+	return err
+}
+
+// AddXP adds XP to the global profile
+func (d *DB) AddXP(amount int) error {
+	_, err := d.Exec(`
+		UPDATE profile SET
+			total_xp = total_xp + ?,
+			level = 1 + (total_xp + ?) / 100,
+			last_activity = datetime('now')
+		WHERE id = 1
+	`, amount, amount)
+	return err
+}
+
+// RecordSprintAttempt records sprint attempt in daily stats
+func (d *DB) RecordSprintAttempt(passed bool, correctCount, totalCount, xpEarned int) {
+	today := time.Now().Format("2006-01-02")
+
+	// Ensure row exists
+	d.Exec(`
+		INSERT INTO daily_stats (date, first_activity, last_activity)
+		VALUES (?, datetime('now'), datetime('now'))
+		ON CONFLICT(date) DO UPDATE SET last_activity = datetime('now')
+	`, today)
+
+	// Update stats
+	d.Exec(`
+		UPDATE daily_stats SET
+			sprints_attempted = sprints_attempted + 1,
+			questions_answered = questions_answered + ?,
+			questions_correct = questions_correct + ?
+		WHERE date = ?
+	`, totalCount, correctCount, today)
+
+	if passed {
+		d.Exec(`
+			UPDATE daily_stats SET
+				sprints_passed = sprints_passed + 1,
+				xp_earned = xp_earned + ?
+			WHERE date = ?
+		`, xpEarned, today)
+	}
+}

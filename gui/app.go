@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/loljeah/exambuilder/internal/config"
@@ -614,6 +615,199 @@ type DailyStatsData struct {
 	QuestionsCorrect  int    `json:"questions_correct"`
 	XPEarned          int    `json:"xp_earned"`
 }
+
+// ============================================================================
+// Exam Taking / Sprint Submission
+// ============================================================================
+
+type SprintResultData struct {
+	SprintNum       int                  `json:"sprint_num"`
+	Topic           string               `json:"topic"`
+	Passed          bool                 `json:"passed"`
+	ScorePercent    int                  `json:"score_percent"`
+	CorrectCount    int                  `json:"correct_count"`
+	TotalQuestions  int                  `json:"total_questions"`
+	XPEarned        int                  `json:"xp_earned"`
+	XPAvailable     int                  `json:"xp_available"`
+	AttemptNumber   int                  `json:"attempt_number"`
+	CoinsEarned     int                  `json:"coins_earned"`
+	QuestionResults []QuestionResultData `json:"question_results"`
+}
+
+type QuestionResultData struct {
+	QuestionNum int    `json:"question_num"`
+	Correct     bool   `json:"correct"`
+	UserAnswer  string `json:"user_answer"`
+	RightAnswer string `json:"right_answer"`
+	XPEarned    int    `json:"xp_earned"`
+}
+
+func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintResultData, error) {
+	if a.active == "" {
+		return nil, fmt.Errorf("no active project")
+	}
+
+	// Get sprint
+	sprint, err := a.db.GetSprint(a.active, sprintNumber)
+	if err != nil {
+		return nil, fmt.Errorf("sprint not found: %w", err)
+	}
+
+	// Grade the sprint
+	passThreshold := 60 // 2/3 correct (60%)
+	if a.cfg != nil && a.cfg.Exam.PassThreshold > 0 {
+		passThreshold = a.cfg.Exam.PassThreshold
+	}
+
+	// Parse questions for grading
+	var questions []db.Question
+	if err := json.Unmarshal([]byte(sprint.QuestionsJSON), &questions); err != nil {
+		return nil, err
+	}
+
+	// Parse answer key
+	var answerKey db.AnswerKey
+	if err := json.Unmarshal([]byte(sprint.AnswerKeyJSON), &answerKey); err != nil {
+		return nil, err
+	}
+
+	// Grade each question
+	result := &SprintResultData{
+		SprintNum:      sprint.SprintNumber,
+		Topic:          sprint.Topic,
+		TotalQuestions: len(questions),
+		XPAvailable:    sprint.XPAvailable,
+		AttemptNumber:  sprint.Attempts + 1,
+	}
+
+	for i, q := range questions {
+		qr := QuestionResultData{
+			QuestionNum: q.Number,
+			XPEarned:    0,
+		}
+
+		if i < len(answerKey.Answers) {
+			qr.RightAnswer = answerKey.Answers[i]
+		}
+
+		if i < len(answers) {
+			qr.UserAnswer = normalizeAnswer(answers[i])
+			qr.Correct = qr.UserAnswer == qr.RightAnswer
+			if qr.Correct {
+				qr.XPEarned = q.XP
+				result.CorrectCount++
+				result.XPEarned += q.XP
+			}
+		}
+
+		result.QuestionResults = append(result.QuestionResults, qr)
+	}
+
+	if result.TotalQuestions > 0 {
+		result.ScorePercent = (result.CorrectCount * 100) / result.TotalQuestions
+	}
+	result.Passed = result.ScorePercent >= passThreshold
+
+	// Calculate coins earned (bonus for passing, per-question coins)
+	if result.Passed {
+		result.CoinsEarned = 10 + (result.CorrectCount * 2) // Base + per correct
+	} else {
+		result.CoinsEarned = result.CorrectCount // Just per correct if not passed
+	}
+
+	// Update sprint status in database
+	newStatus := sprint.Status
+	if result.Passed && sprint.Status != "passed" {
+		newStatus = "passed"
+	}
+
+	bestScore := sprint.BestScore
+	if bestScore == nil || result.ScorePercent > *bestScore {
+		bestScore = &result.ScorePercent
+	}
+
+	answersJSON, _ := json.Marshal(answers)
+	if err := a.db.UpdateSprintAttempt(sprint.ID, newStatus, bestScore, string(answersJSON)); err != nil {
+		return nil, err
+	}
+
+	// Award XP and coins
+	if result.XPEarned > 0 {
+		a.db.AddXP(result.XPEarned)
+	}
+	if result.CoinsEarned > 0 {
+		gamification.AddCoins(a.sqlDB, result.CoinsEarned, "sprint_completed")
+	}
+
+	// Update daily stats
+	a.db.RecordSprintAttempt(result.Passed, result.CorrectCount, result.TotalQuestions, result.XPEarned)
+
+	// Check achievements
+	gamification.CheckAchievements(a.sqlDB, a.db)
+
+	return result, nil
+}
+
+// normalizeAnswer converts various answer formats to single letter
+func normalizeAnswer(ans string) string {
+	ans = strings.TrimSpace(strings.ToUpper(ans))
+
+	// Direct letter
+	if len(ans) == 1 && ans >= "A" && ans <= "D" {
+		return ans
+	}
+
+	// "Option A", "A)", "A.", etc.
+	for _, letter := range []string{"A", "B", "C", "D"} {
+		if strings.HasPrefix(ans, letter) {
+			return letter
+		}
+	}
+
+	return ans
+}
+
+// GetSprintHints returns hints for incorrect answers (after first failed attempt)
+func (a *App) GetSprintHints(sprintNumber int) []string {
+	if a.active == "" {
+		return nil
+	}
+
+	sprint, err := a.db.GetSprint(a.active, sprintNumber)
+	if err != nil {
+		return nil
+	}
+
+	var answerKey db.AnswerKey
+	if err := json.Unmarshal([]byte(sprint.AnswerKeyJSON), &answerKey); err != nil {
+		return nil
+	}
+
+	return answerKey.Hints
+}
+
+// GetSprintExplanations returns full explanations (after second failed attempt)
+func (a *App) GetSprintExplanations(sprintNumber int) []string {
+	if a.active == "" {
+		return nil
+	}
+
+	sprint, err := a.db.GetSprint(a.active, sprintNumber)
+	if err != nil {
+		return nil
+	}
+
+	var answerKey db.AnswerKey
+	if err := json.Unmarshal([]byte(sprint.AnswerKeyJSON), &answerKey); err != nil {
+		return nil
+	}
+
+	return answerKey.Explanations
+}
+
+// ============================================================================
+// Stats
+// ============================================================================
 
 func (a *App) GetStats(period string) []DailyStatsData {
 	endDate := time.Now().Format("2006-01-02")
