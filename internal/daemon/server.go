@@ -7,14 +7,21 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
 	"github.com/loljeah/exambuilder/internal/exam"
 	"github.com/loljeah/exambuilder/internal/voice"
+)
+
+const (
+	socketReadTimeout = 5 * time.Second
+	maxCommandLength  = 8192
 )
 
 type Server struct {
@@ -44,6 +51,8 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
+	// Restrict socket to owner only (security)
+	os.Chmod(s.cfg.General.SocketPath, 0700)
 	s.listener = listener
 
 	log.Printf("listening on %s", s.cfg.General.SocketPath)
@@ -67,9 +76,18 @@ func (s *Server) Stop() {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
+	// Set read deadline to prevent DoS from slow/stalled clients
+	conn.SetReadDeadline(time.Now().Add(socketReadTimeout))
+
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadString('\n')
 	if err != nil {
+		return
+	}
+
+	// Limit command length
+	if len(line) > maxCommandLength {
+		fmt.Fprintf(conn, "ERR command too long\n")
 		return
 	}
 
@@ -81,6 +99,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 		args = parts[1]
 	}
 
+	// Clear read deadline for response
+	conn.SetReadDeadline(time.Time{})
+
 	response := s.handleCommand(cmd, args)
 	fmt.Fprintf(conn, "%s\n", response)
 }
@@ -90,6 +111,8 @@ func (s *Server) handleCommand(cmd, args string) string {
 	defer s.mu.Unlock()
 
 	switch cmd {
+	case "health":
+		return "OK"
 	case "status":
 		return s.cmdStatus()
 	case "project":
@@ -108,6 +131,8 @@ func (s *Server) handleCommand(cmd, args string) string {
 		return s.cmdProfile()
 	case "speak":
 		return s.cmdSpeak(args)
+	case "import":
+		return s.cmdImport(args)
 	case "quit":
 		go func() {
 			s.Stop()
@@ -210,7 +235,8 @@ func (s *Server) cmdSprints() string {
 		if sp.BestScore != nil {
 			score = *sp.BestScore
 		}
-		lines = append(lines, fmt.Sprintf("%d %s %s score=%d attempts=%d",
+		// Use tab separator for easier parsing
+		lines = append(lines, fmt.Sprintf("%d\t%s\t%s\t%d\t%d",
 			sp.SprintNumber, sp.Topic, sp.Status, score, sp.Attempts))
 	}
 	return "OK\n" + strings.Join(lines, "\n")
@@ -300,4 +326,85 @@ func (s *Server) cmdSpeak(args string) string {
 		return "ERR " + err.Error()
 	}
 	return "OK"
+}
+
+func (s *Server) cmdImport(args string) string {
+	if args == "" {
+		return "ERR usage: import <exam_file_path>"
+	}
+
+	// Resolve to absolute path and validate
+	absPath, err := filepath.Abs(args)
+	if err != nil {
+		return "ERR invalid path"
+	}
+
+	// Security: only allow importing from user home or common project directories
+	homeDir, _ := os.UserHomeDir()
+	allowedPrefixes := []string{
+		homeDir,
+		"/home",
+		"/tmp",
+	}
+
+	allowed := false
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(absPath, prefix) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return "ERR path not allowed"
+	}
+
+	// Validate file exists and is a regular file (not symlink to sensitive area)
+	info, err := os.Lstat(absPath)
+	if err != nil {
+		return "ERR " + err.Error()
+	}
+	if !info.Mode().IsRegular() {
+		return "ERR not a regular file"
+	}
+
+	// Only allow .md files
+	if !strings.HasSuffix(absPath, ".md") {
+		return "ERR only .md files allowed"
+	}
+
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		return "ERR " + err.Error()
+	}
+
+	sprints, err := exam.ParseExamFile(string(content))
+	if err != nil {
+		return "ERR parse: " + err.Error()
+	}
+
+	if len(sprints) == 0 {
+		return "ERR no sprints found in file"
+	}
+
+	// Determine project from file path
+	projectPath := filepath.Dir(absPath)
+	project, err := s.db.GetOrCreateProject(projectPath)
+	if err != nil {
+		return "ERR project: " + err.Error()
+	}
+
+	// Import sprints
+	imported := 0
+	for _, ps := range sprints {
+		dbSprint, err := ps.ToDBSprint(project.ID)
+		if err != nil {
+			continue
+		}
+		if err := s.db.UpsertSprint(dbSprint); err != nil {
+			continue
+		}
+		imported++
+	}
+
+	return fmt.Sprintf("OK imported %d sprints for %s", imported, project.Name)
 }

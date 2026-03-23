@@ -4,15 +4,9 @@ import (
 	"fmt"
 
 	"fyne.io/systray"
+	"github.com/loljeah/exambuilder/assets"
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
-)
-
-// Icons (base64 encoded PNGs would go here, using placeholders)
-var (
-	iconGreen  = []byte{} // debt < 50%
-	iconYellow = []byte{} // debt 50-80%
-	iconRed    = []byte{} // debt >= 80%
 )
 
 type Tray struct {
@@ -87,13 +81,13 @@ func (t *Tray) Update(projectID string, debt int) {
 
 	switch {
 	case percent >= 80:
-		systray.SetIcon(iconRed)
-		systray.SetTooltip("⚠️ High debt - take an exam!")
+		systray.SetIcon(assets.IconRed)
+		systray.SetTooltip("High debt - take an exam!")
 	case percent >= 50:
-		systray.SetIcon(iconYellow)
+		systray.SetIcon(assets.IconYellow)
 		systray.SetTooltip("Knowledge Gate - debt building")
 	default:
-		systray.SetIcon(iconGreen)
+		systray.SetIcon(assets.IconGreen)
 		systray.SetTooltip("Knowledge Gate - ready")
 	}
 

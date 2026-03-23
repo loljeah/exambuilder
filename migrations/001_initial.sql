@@ -1,6 +1,5 @@
--- Knowledge Gate initial schema
-
-CREATE TABLE IF NOT EXISTS projects (
+-- Projects table
+CREATE TABLE projects (
     id TEXT PRIMARY KEY,
     full_hash TEXT NOT NULL,
     path TEXT NOT NULL UNIQUE,
@@ -9,7 +8,8 @@ CREATE TABLE IF NOT EXISTS projects (
     last_active TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS debt_log (
+-- Debt log for history
+CREATE TABLE debt_log (
     id INTEGER PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id),
     action TEXT NOT NULL,
@@ -18,13 +18,15 @@ CREATE TABLE IF NOT EXISTS debt_log (
     timestamp TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS debt_current (
+-- Current debt per project
+CREATE TABLE debt_current (
     project_id TEXT PRIMARY KEY REFERENCES projects(id),
     total INTEGER NOT NULL DEFAULT 0,
     last_updated TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS sprints (
+-- Sprints (exam units)
+CREATE TABLE sprints (
     id INTEGER PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id),
     sprint_number INTEGER NOT NULL,
@@ -41,7 +43,8 @@ CREATE TABLE IF NOT EXISTS sprints (
     UNIQUE(project_id, sprint_number)
 );
 
-CREATE TABLE IF NOT EXISTS profile (
+-- Global profile (singleton)
+CREATE TABLE profile (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     total_xp INTEGER NOT NULL DEFAULT 0,
     level INTEGER NOT NULL DEFAULT 1,
@@ -51,7 +54,8 @@ CREATE TABLE IF NOT EXISTS profile (
     last_activity TEXT
 );
 
-CREATE TABLE IF NOT EXISTS badges (
+-- Badges/achievements
+CREATE TABLE badges (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -61,5 +65,16 @@ CREATE TABLE IF NOT EXISTS badges (
     project_id TEXT REFERENCES projects(id)
 );
 
+-- Attempt history
+CREATE TABLE attempts (
+    id INTEGER PRIMARY KEY,
+    sprint_id INTEGER NOT NULL REFERENCES sprints(id),
+    answers_json TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    passed INTEGER NOT NULL,
+    xp_earned INTEGER NOT NULL,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Initialize singleton profile
-INSERT OR IGNORE INTO profile (id) VALUES (1);
+INSERT INTO profile (id) VALUES (1);

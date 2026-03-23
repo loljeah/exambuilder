@@ -95,11 +95,11 @@ func Load() (*Config, error) {
 
 func (c *Config) Save() error {
 	configPath := filepath.Join(c.General.DataDir, "config.toml")
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(configPath), 0750); err != nil {
 		return err
 	}
 
-	f, err := os.Create(configPath)
+	f, err := os.OpenFile(configPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
 	if err != nil {
 		return err
 	}

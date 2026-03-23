@@ -105,6 +105,13 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 	}
 	w.debounce[event.Name] = now
 
+	// Clean old debounce entries (>1 minute old)
+	for k, v := range w.debounce {
+		if now.Sub(v) > time.Minute {
+			delete(w.debounce, k)
+		}
+	}
+
 	log.Printf("exam file changed: %s", event.Name)
 
 	// Parse and import

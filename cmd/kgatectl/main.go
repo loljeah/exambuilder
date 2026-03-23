@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
@@ -20,7 +22,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: config load failed: %v\n", err)
+	}
 
 	cmd := os.Args[1]
 	args := os.Args[2:]
@@ -40,6 +45,8 @@ func main() {
 		cmdTake(cfg, args)
 	case "profile":
 		cmdProfile(cfg)
+	case "import":
+		cmdImport(cfg, args)
 	case "quit":
 		cmdQuit(cfg)
 	case "help", "-h", "--help":
@@ -83,9 +90,26 @@ func sendCommand(cfg *config.Config, cmd string) string {
 
 	fmt.Fprintf(conn, "%s\n", cmd)
 
-	reader := bufio.NewReader(conn)
-	response, _ := reader.ReadString('\n')
-	return strings.TrimSpace(response)
+	// Set reasonable read timeout
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+
+	// Read all response data
+	var response strings.Builder
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			response.Write(buf[:n])
+			// Check if we got complete response (ends with newline)
+			if buf[n-1] == '\n' {
+				break
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return strings.TrimSpace(response.String())
 }
 
 func cmdStatus(cfg *config.Config) {
@@ -147,8 +171,8 @@ func cmdSprints(cfg *config.Config) {
 		if line == "" {
 			continue
 		}
-		// Format: 1 Topic status score=X attempts=Y
-		parts := strings.Fields(line)
+		// Format: num\ttopic\tstatus\tscore\tattempts
+		parts := strings.Split(line, "\t")
 		if len(parts) >= 3 {
 			num := parts[0]
 			topic := parts[1]
@@ -171,6 +195,23 @@ func cmdProfile(cfg *config.Config) {
 
 func cmdQuit(cfg *config.Config) {
 	resp := sendCommand(cfg, "quit")
+	fmt.Println(resp)
+}
+
+func cmdImport(cfg *config.Config, args []string) {
+	if len(args) < 1 {
+		fmt.Println("usage: kgatectl import <exam_file.md>")
+		os.Exit(1)
+	}
+
+	// Get absolute path
+	path := args[0]
+	if !filepath.IsAbs(path) {
+		cwd, _ := os.Getwd()
+		path = filepath.Join(cwd, path)
+	}
+
+	resp := sendCommand(cfg, "import "+path)
 	fmt.Println(resp)
 }
 
@@ -244,12 +285,13 @@ func cmdTake(cfg *config.Config, args []string) {
 
 		var answer string
 		if voiceFull {
-			// TODO: STT via moonshine
-			answer, _ = reader.ReadString('\n')
+			// STT via moonshine-daemon
+			answer = listenForAnswer(cfg)
+			fmt.Printf("%s\n", answer)
 		} else {
 			answer, _ = reader.ReadString('\n')
 		}
-		answers[i] = strings.TrimSpace(answer)
+		answers[i] = normalizeAnswer(strings.TrimSpace(answer))
 		fmt.Println()
 	}
 
@@ -300,4 +342,82 @@ func speakResult(cfg *config.Config, passed bool, score, xp int) {
 		text = fmt.Sprintf("Not passed. %d percent. Try again when ready.", score)
 	}
 	sendCommand(cfg, "speak "+text)
+}
+
+// listenForAnswer uses moonshine-daemon for STT input
+func listenForAnswer(cfg *config.Config) string {
+	// Send beep to indicate ready for input
+	sendCommand(cfg, "speak Ready")
+
+	// Connect to moonshine-daemon and toggle recording
+	conn, err := net.Dial("unix", cfg.Voice.MoonshineSocket)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "moonshine not available: %v\n", err)
+		return ""
+	}
+	defer conn.Close()
+
+	// Start recording
+	fmt.Fprintf(conn, "toggle\n")
+
+	// Wait for transcription result (blocking)
+	var response strings.Builder
+	buf := make([]byte, 4096)
+	for {
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second)) // 30s max recording
+		n, err := conn.Read(buf)
+		if n > 0 {
+			response.Write(buf[:n])
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	result := strings.TrimSpace(response.String())
+	if strings.HasPrefix(result, "OK ") {
+		return result[3:]
+	}
+	return result
+}
+
+// normalizeAnswer converts spoken answers like "alpha", "bravo" to A, B, C, D
+func normalizeAnswer(input string) string {
+	input = strings.ToUpper(strings.TrimSpace(input))
+
+	// Direct letter match
+	if len(input) == 1 && input[0] >= 'A' && input[0] <= 'D' {
+		return input
+	}
+
+	// NATO phonetic alphabet
+	switch {
+	case strings.HasPrefix(input, "ALPHA"), strings.HasPrefix(input, "ALFA"):
+		return "A"
+	case strings.HasPrefix(input, "BRAVO"), strings.HasPrefix(input, "B "):
+		return "B"
+	case strings.HasPrefix(input, "CHARLIE"), strings.HasPrefix(input, "C "):
+		return "C"
+	case strings.HasPrefix(input, "DELTA"), strings.HasPrefix(input, "D "):
+		return "D"
+	// Common speech variations
+	case strings.Contains(input, "OPTION A"), strings.Contains(input, "ANSWER A"):
+		return "A"
+	case strings.Contains(input, "OPTION B"), strings.Contains(input, "ANSWER B"):
+		return "B"
+	case strings.Contains(input, "OPTION C"), strings.Contains(input, "ANSWER C"):
+		return "C"
+	case strings.Contains(input, "OPTION D"), strings.Contains(input, "ANSWER D"):
+		return "D"
+	case strings.Contains(input, "FIRST"):
+		return "A"
+	case strings.Contains(input, "SECOND"):
+		return "B"
+	case strings.Contains(input, "THIRD"):
+		return "C"
+	case strings.Contains(input, "FOURTH"), strings.Contains(input, "LAST"):
+		return "D"
+	}
+
+	return input
 }

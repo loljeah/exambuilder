@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
+)
+
+const (
+	connectTimeout = 3 * time.Second
+	readTimeout    = 30 * time.Second
 )
 
 // Client handles TTS and STT via external daemons
@@ -21,11 +27,16 @@ func NewClient(cfg *config.Config) *Client {
 
 // sendCommand sends a command to a Unix socket and returns the response
 func sendCommand(socketPath, command string) (string, error) {
-	conn, err := net.Dial("unix", socketPath)
+	// Use dialer with timeout
+	dialer := net.Dialer{Timeout: connectTimeout}
+	conn, err := dialer.Dial("unix", socketPath)
 	if err != nil {
 		return "", fmt.Errorf("connect to %s: %w", socketPath, err)
 	}
 	defer conn.Close()
+
+	// Set read deadline
+	conn.SetDeadline(time.Now().Add(readTimeout))
 
 	_, err = fmt.Fprintf(conn, "%s\n", command)
 	if err != nil {
