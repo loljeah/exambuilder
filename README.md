@@ -109,6 +109,26 @@ ALLOWED:
 - **Read-only still helps** - can explain what you built, just can't add more chaos
 - **Gamification** - XP, streaks, levels provide dopamine hits
 
+## Data Locations
+
+All data follows XDG Base Directory spec for easy backup/restore:
+
+| Purpose | Location |
+|---------|----------|
+| Config | `~/.config/kgate/config.toml` |
+| Database | `~/.local/share/kgate/kgate.db` |
+| Socket | `/run/user/$UID/kgate.sock` |
+
+### Backup & Restore
+
+```bash
+# Backup everything
+tar -czvf kgate-backup.tar.gz ~/.config/kgate ~/.local/share/kgate
+
+# Restore on new system
+tar -xzvf kgate-backup.tar.gz -C ~/
+```
+
 ## Project Structure
 
 ```

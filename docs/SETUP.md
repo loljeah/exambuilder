@@ -59,12 +59,64 @@ nix build .#kgatectl
 nix run .#kgate-daemon
 ```
 
+## Data Locations (XDG Base Directory)
+
+All kgate data follows the XDG Base Directory specification for easy backup/restore:
+
+| Purpose | Location | Environment Variable |
+|---------|----------|---------------------|
+| Config | `~/.config/kgate/config.toml` | `$XDG_CONFIG_HOME/kgate/` |
+| Database | `~/.local/share/kgate/kgate.db` | `$XDG_DATA_HOME/kgate/` |
+| Socket | `/run/user/$UID/kgate.sock` | `$XDG_RUNTIME_DIR/` |
+
+### Backup & Restore
+
+To backup all kgate data:
+
+```bash
+# Backup
+tar -czvf kgate-backup.tar.gz \
+    ~/.config/kgate \
+    ~/.local/share/kgate
+
+# Restore on new system
+tar -xzvf kgate-backup.tar.gz -C ~/
+```
+
+Or copy individual files:
+
+```bash
+# Config only
+cp -r ~/.config/kgate ~/backup/
+
+# Database (all progress, XP, sprints)
+cp -r ~/.local/share/kgate ~/backup/
+```
+
+### Migration from Legacy Location
+
+If you used an older version with `~/.kgate/`, the daemon will automatically check for and use the legacy config. To migrate manually:
+
+```bash
+# Create new directories
+mkdir -p ~/.config/kgate ~/.local/share/kgate
+
+# Move config
+mv ~/.kgate/config.toml ~/.config/kgate/
+
+# Move database
+mv ~/.kgate/kgate.db ~/.local/share/kgate/
+
+# Remove old directory
+rmdir ~/.kgate
+```
+
 ## Configuration
 
 ### Config File Location
 
 ```
-~/.kgate/config.toml
+~/.config/kgate/config.toml
 ```
 
 The config is created automatically with defaults on first run.
@@ -76,8 +128,8 @@ The config is created automatically with defaults on first run.
 # Root directory to watch for exam files
 projects_root = "~/gitZ"
 
-# Data directory (database, config)
-data_dir = "~/.kgate"
+# Data directory (database)
+data_dir = "~/.local/share/kgate"
 
 # Unix socket path for daemon communication
 socket_path = "/run/user/1000/kgate.sock"
@@ -321,9 +373,25 @@ echo "status" | nc -U /tmp/moonshine/moonshine.sock
 ### Database issues
 
 ```bash
-# Database location
+# Database location (new)
+ls -la ~/.local/share/kgate/kgate.db
+
+# Legacy location
 ls -la ~/.kgate/kgate.db
 
 # Reset database (WARNING: loses all data)
-rm ~/.kgate/kgate.db
+rm ~/.local/share/kgate/kgate.db
+```
+
+### Check all data locations
+
+```bash
+# Config
+cat ~/.config/kgate/config.toml
+
+# Database
+ls -la ~/.local/share/kgate/
+
+# Both directories for full backup
+ls -la ~/.config/kgate/ ~/.local/share/kgate/
 ```
