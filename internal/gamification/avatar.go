@@ -28,6 +28,7 @@ type Avatar struct {
 	CreatureType   string
 	Name           string
 	Mood           string
+	XPMultiplier   float64
 	LastActiveDate string
 	CreatedAt      string
 }
@@ -43,6 +44,7 @@ func GetAvatar(db *sql.DB) (*Avatar, error) {
 		return nil, err
 	}
 	avatar.Mood = CalculateMood(avatar.LastActiveDate)
+	avatar.XPMultiplier = GetXPMultiplier(avatar.Mood)
 	return avatar, nil
 }
 

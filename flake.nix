@@ -39,6 +39,7 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
+            # Go
             go
             gopls
             gotools
@@ -48,12 +49,23 @@
             libayatana-appindicator
             gtk3
             glib
+
+            # Wails GUI
+            wails
+            nodejs_20
+            nodePackages.npm
+            webkitgtk_4_1
+
+            # Pixel art
+            python3
+            python3Packages.pillow
           ];
 
           shellHook = ''
-            echo "kgate dev environment (Go)"
+            echo "kgate dev environment (Go + Wails)"
             echo "  go build ./cmd/kgate-daemon"
             echo "  go build ./cmd/kgatectl"
+            echo "  cd gui && wails dev"
           '';
         };
       }
