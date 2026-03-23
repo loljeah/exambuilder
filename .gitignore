@@ -2,3 +2,5 @@
 .data/
 *.db
 *.db-journal
+/kgate-daemon
+/kgatectl

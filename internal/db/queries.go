@@ -1,0 +1,287 @@
+package db
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"path/filepath"
+	"time"
+)
+
+// ProjectHash generates short hash from path
+func ProjectHash(path string) string {
+	h := sha256.Sum256([]byte(path))
+	return hex.EncodeToString(h[:])[:8]
+}
+
+// GetOrCreateProject finds or creates a project by path
+func (d *DB) GetOrCreateProject(path string) (*Project, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	id := ProjectHash(absPath)
+	fullHash := hex.EncodeToString(sha256.New().Sum([]byte(absPath)))
+	name := filepath.Base(absPath)
+
+	_, err = d.Exec(`
+		INSERT INTO projects (id, full_hash, path, name)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(path) DO UPDATE SET last_active = datetime('now')
+	`, id, fullHash, absPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.GetProject(id)
+}
+
+// GetProject retrieves a project by ID
+func (d *DB) GetProject(id string) (*Project, error) {
+	row := d.QueryRow(`
+		SELECT id, full_hash, path, name, created_at, last_active
+		FROM projects WHERE id = ?
+	`, id)
+
+	p := &Project{}
+	var createdAt, lastActive string
+	err := row.Scan(&p.ID, &p.FullHash, &p.Path, &p.Name, &createdAt, &lastActive)
+	if err != nil {
+		return nil, err
+	}
+
+	p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	p.LastActive, _ = time.Parse("2006-01-02 15:04:05", lastActive)
+	return p, nil
+}
+
+// ListProjects returns all projects
+func (d *DB) ListProjects() ([]*Project, error) {
+	rows, err := d.Query(`
+		SELECT id, full_hash, path, name, created_at, last_active
+		FROM projects ORDER BY last_active DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []*Project
+	for rows.Next() {
+		p := &Project{}
+		var createdAt, lastActive string
+		if err := rows.Scan(&p.ID, &p.FullHash, &p.Path, &p.Name, &createdAt, &lastActive); err != nil {
+			return nil, err
+		}
+		p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+		p.LastActive, _ = time.Parse("2006-01-02 15:04:05", lastActive)
+		projects = append(projects, p)
+	}
+	return projects, nil
+}
+
+// GetDebt returns current debt for a project
+func (d *DB) GetDebt(projectID string) (int, error) {
+	var total int
+	err := d.QueryRow("SELECT COALESCE(total, 0) FROM debt_current WHERE project_id = ?", projectID).Scan(&total)
+	if err != nil {
+		return 0, nil // No debt record = 0 debt
+	}
+	return total, nil
+}
+
+// AddDebt adds debt and logs it
+func (d *DB) AddDebt(projectID, action string, weight int, description string) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Log the debt entry
+	_, err = tx.Exec(`
+		INSERT INTO debt_log (project_id, action, weight, description)
+		VALUES (?, ?, ?, ?)
+	`, projectID, action, weight, description)
+	if err != nil {
+		return err
+	}
+
+	// Update current debt
+	_, err = tx.Exec(`
+		INSERT INTO debt_current (project_id, total)
+		VALUES (?, ?)
+		ON CONFLICT(project_id) DO UPDATE SET
+			total = total + ?,
+			last_updated = datetime('now')
+	`, projectID, weight, weight)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// ClearDebt reduces debt by amount
+func (d *DB) ClearDebt(projectID string, amount int) error {
+	_, err := d.Exec(`
+		UPDATE debt_current
+		SET total = MAX(0, total - ?), last_updated = datetime('now')
+		WHERE project_id = ?
+	`, amount, projectID)
+	return err
+}
+
+// GetProfile returns the global profile
+func (d *DB) GetProfile() (*Profile, error) {
+	row := d.QueryRow(`
+		SELECT total_xp, level, current_streak, best_streak, sprints_passed, last_activity
+		FROM profile WHERE id = 1
+	`)
+
+	p := &Profile{}
+	var lastActivity *string
+	err := row.Scan(&p.TotalXP, &p.Level, &p.CurrentStreak, &p.BestStreak, &p.SprintsPassed, &lastActivity)
+	if err != nil {
+		return nil, err
+	}
+
+	if lastActivity != nil {
+		t, _ := time.Parse("2006-01-02 15:04:05", *lastActivity)
+		p.LastActivity = &t
+	}
+	return p, nil
+}
+
+// UpdateProfile updates XP, level, and streak
+func (d *DB) UpdateProfile(xpDelta, streakDelta int, sprintPassed bool) error {
+	_, err := d.Exec(`
+		UPDATE profile SET
+			total_xp = total_xp + ?,
+			level = 1 + (total_xp + ?) / 100,
+			current_streak = CASE
+				WHEN ? > 0 THEN current_streak + ?
+				WHEN ? < 0 THEN 0
+				ELSE current_streak
+			END,
+			best_streak = MAX(best_streak, current_streak + ?),
+			sprints_passed = sprints_passed + CASE WHEN ? THEN 1 ELSE 0 END,
+			last_activity = datetime('now')
+		WHERE id = 1
+	`, xpDelta, xpDelta, streakDelta, streakDelta, streakDelta, streakDelta, sprintPassed)
+	return err
+}
+
+// GetSprints returns all sprints for a project
+func (d *DB) GetSprints(projectID string) ([]*Sprint, error) {
+	rows, err := d.Query(`
+		SELECT id, project_id, sprint_number, topic, questions_json, answer_key_json,
+		       status, best_score, attempts, xp_available, xp_earned, created_at, passed_at
+		FROM sprints WHERE project_id = ? ORDER BY sprint_number
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sprints []*Sprint
+	for rows.Next() {
+		s := &Sprint{}
+		var createdAt string
+		var passedAt *string
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.SprintNumber, &s.Topic,
+			&s.QuestionsJSON, &s.AnswerKeyJSON, &s.Status, &s.BestScore,
+			&s.Attempts, &s.XPAvailable, &s.XPEarned, &createdAt, &passedAt); err != nil {
+			return nil, err
+		}
+		s.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+		if passedAt != nil {
+			t, _ := time.Parse("2006-01-02 15:04:05", *passedAt)
+			s.PassedAt = &t
+		}
+		sprints = append(sprints, s)
+	}
+	return sprints, nil
+}
+
+// GetSprint returns a specific sprint
+func (d *DB) GetSprint(projectID string, sprintNum int) (*Sprint, error) {
+	row := d.QueryRow(`
+		SELECT id, project_id, sprint_number, topic, questions_json, answer_key_json,
+		       status, best_score, attempts, xp_available, xp_earned, created_at, passed_at
+		FROM sprints WHERE project_id = ? AND sprint_number = ?
+	`, projectID, sprintNum)
+
+	s := &Sprint{}
+	var createdAt string
+	var passedAt *string
+	err := row.Scan(&s.ID, &s.ProjectID, &s.SprintNumber, &s.Topic,
+		&s.QuestionsJSON, &s.AnswerKeyJSON, &s.Status, &s.BestScore,
+		&s.Attempts, &s.XPAvailable, &s.XPEarned, &createdAt, &passedAt)
+	if err != nil {
+		return nil, err
+	}
+	s.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	if passedAt != nil {
+		t, _ := time.Parse("2006-01-02 15:04:05", *passedAt)
+		s.PassedAt = &t
+	}
+	return s, nil
+}
+
+// UpsertSprint creates or updates a sprint
+func (d *DB) UpsertSprint(s *Sprint) error {
+	_, err := d.Exec(`
+		INSERT INTO sprints (project_id, sprint_number, topic, questions_json, answer_key_json, xp_available)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(project_id, sprint_number) DO UPDATE SET
+			topic = excluded.topic,
+			questions_json = excluded.questions_json,
+			answer_key_json = excluded.answer_key_json,
+			xp_available = excluded.xp_available
+	`, s.ProjectID, s.SprintNumber, s.Topic, s.QuestionsJSON, s.AnswerKeyJSON, s.XPAvailable)
+	return err
+}
+
+// RecordAttempt records an exam attempt
+func (d *DB) RecordAttempt(sprintID int64, answersJSON string, score int, passed bool, xpEarned int) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Insert attempt
+	_, err = tx.Exec(`
+		INSERT INTO attempts (sprint_id, answers_json, score, passed, xp_earned)
+		VALUES (?, ?, ?, ?, ?)
+	`, sprintID, answersJSON, score, passed, xpEarned)
+	if err != nil {
+		return err
+	}
+
+	// Update sprint
+	if passed {
+		_, err = tx.Exec(`
+			UPDATE sprints SET
+				status = 'passed',
+				best_score = MAX(COALESCE(best_score, 0), ?),
+				attempts = attempts + 1,
+				xp_earned = xp_earned + ?,
+				passed_at = datetime('now')
+			WHERE id = ?
+		`, score, xpEarned, sprintID)
+	} else {
+		_, err = tx.Exec(`
+			UPDATE sprints SET
+				best_score = MAX(COALESCE(best_score, 0), ?),
+				attempts = attempts + 1
+			WHERE id = ?
+		`, score, sprintID)
+	}
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
