@@ -76,6 +76,8 @@ export function SetCreatureType(arg1:string):Promise<void>;
 
 export function SpeakQuestion(arg1:number,arg2:number):Promise<void>;
 
+export function SpeakSprintResult(arg1:boolean,arg2:number,arg3:number):Promise<void>;
+
 export function SpeakText(arg1:string):Promise<void>;
 
 export function SpeakTextBlocking(arg1:string):Promise<void>;

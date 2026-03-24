@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -1057,7 +1058,8 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 
 		if i < len(answers) {
 			qr.UserAnswer = normalizeAnswer(answers[i])
-			qr.Correct = qr.UserAnswer == qr.RightAnswer
+			// Normalize both sides and compare (handles case and multi-choice ordering)
+			qr.Correct = normalizeAnswer(qr.UserAnswer) == normalizeAnswer(qr.RightAnswer)
 			if qr.Correct {
 				qr.XPEarned = q.XP
 				result.CorrectCount++
@@ -1167,11 +1169,30 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 	return result, nil
 }
 
-// normalizeAnswer converts various answer formats to single letter
+// normalizeAnswer converts various answer formats to comparable form
+// Handles both single answers (A, B, C, D) and multi-choice (A,C or C,A -> A,C)
 func normalizeAnswer(ans string) string {
 	ans = strings.TrimSpace(strings.ToUpper(ans))
 
-	// Direct letter
+	// Handle multi-choice: sort comma-separated values for order-independent comparison
+	if strings.Contains(ans, ",") {
+		parts := strings.Split(ans, ",")
+		var letters []string
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if len(part) > 0 {
+				// Extract first character (the letter)
+				letter := string(part[0])
+				if letter >= "A" && letter <= "D" {
+					letters = append(letters, letter)
+				}
+			}
+		}
+		sort.Strings(letters)
+		return strings.Join(letters, ",")
+	}
+
+	// Direct single letter
 	if len(ans) == 1 && ans >= "A" && ans <= "D" {
 		return ans
 	}
@@ -1472,4 +1493,12 @@ func (a *App) SpeakQuestion(sprintNumber int, questionIndex int) error {
 
 	q := &questions[questionIndex]
 	return a.voice.SpeakQuestion(q, questionIndex+1)
+}
+
+// SpeakSprintResult announces sprint completion via TTS
+func (a *App) SpeakSprintResult(passed bool, scorePercent int, xpEarned int) error {
+	if a.voice == nil {
+		return nil
+	}
+	return a.voice.SpeakSprintResult(passed, scorePercent, xpEarned)
 }

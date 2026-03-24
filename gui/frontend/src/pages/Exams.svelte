@@ -258,6 +258,17 @@
           }
         }
 
+        // Refresh sprints list to show updated status
+        if (window.go?.main?.App?.GetSprints) {
+          sprints = await withTimeout(window.go.main.App.GetSprints(), 5000) || [];
+        }
+
+        // Speak result if piper available
+        if (piperAvailable && window.go?.main?.App?.SpeakSprintResult) {
+          window.go.main.App.SpeakSprintResult(result.passed, result.score_percent, result.xp_earned)
+            .catch(err => console.warn('SpeakSprintResult error:', err));
+        }
+
         view = 'results';
       }
     } catch (err) {
@@ -277,6 +288,48 @@
 
   function retakeExam() {
     startExam(selectedSprint);
+  }
+
+  function handleExamKeydown(e) {
+    if (view !== 'taking' || !currentQuestion) return;
+
+    // 1-4 for answer selection
+    if (['1', '2', '3', '4'].includes(e.key)) {
+      const optionIndex = parseInt(e.key) - 1;
+      if (optionIndex < currentQuestion.options.length) {
+        selectAnswerOption(optionIndex);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // A-D for answer selection
+    const key = e.key.toUpperCase();
+    if (['A', 'B', 'C', 'D'].includes(key)) {
+      const optionIndex = key.charCodeAt(0) - 65;
+      if (optionIndex < currentQuestion.options.length) {
+        selectAnswerOption(optionIndex);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // Enter for next/submit
+    if (e.key === 'Enter') {
+      if (currentQuestionIndex === questions.length - 1) {
+        if (answeredCount >= questions.length) submitExam();
+      } else {
+        nextQuestion();
+      }
+      e.preventDefault();
+      return;
+    }
+
+    // Escape to exit
+    if (e.key === 'Escape') {
+      backToSelect();
+      e.preventDefault();
+    }
   }
 
   function formatTime(seconds) {
@@ -301,6 +354,8 @@
     stopSpeechAndTypewriter();
   });
 </script>
+
+<svelte:window on:keydown={handleExamKeydown} />
 
 <div class="exams-page">
   {#if view === 'select'}

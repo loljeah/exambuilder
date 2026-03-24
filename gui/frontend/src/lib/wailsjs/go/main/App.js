@@ -150,6 +150,10 @@ export function SpeakQuestion(arg1, arg2) {
   return window['go']['main']['App']['SpeakQuestion'](arg1, arg2);
 }
 
+export function SpeakSprintResult(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SpeakSprintResult'](arg1, arg2, arg3);
+}
+
 export function SpeakText(arg1) {
   return window['go']['main']['App']['SpeakText'](arg1);
 }
