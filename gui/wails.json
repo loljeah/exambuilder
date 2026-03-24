@@ -12,7 +12,7 @@
     "compilerVersion": "go1.22"
   },
   "assetdir": "./frontend/dist",
-  "tags": ["webkit2_41"],
+  "build:tags": "webkit2_41",
   "author": {
     "name": "Knowledge Gate",
     "email": "kgate@local"
