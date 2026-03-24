@@ -4,6 +4,7 @@
   import Button from '../lib/components/Button.svelte';
   import ProgressBar from '../lib/components/ProgressBar.svelte';
   import { playClick, playCorrect, playWrong, playSprintPassed, playSprintFailed, playLevelUp, playXP, playAchievement } from '../lib/audio.js';
+  import * as api from '../lib/api';
 
   // Helper to add timeout to promises
   function withTimeout(promise, ms = 5000) {
@@ -46,14 +47,10 @@
 
   async function loadProjects() {
     try {
-      if (window.go?.main?.App?.GetProjects) {
-        projects = await withTimeout(window.go.main.App.GetProjects(), 5000) || [];
-      }
+      projects = await withTimeout(api.GetProjects(), 5000) || [];
       // Check if piper is available
-      if (window.go?.main?.App?.IsPiperAvailable) {
-        piperAvailable = await withTimeout(window.go.main.App.IsPiperAvailable(), 2000);
-        console.log('Piper available:', piperAvailable);
-      }
+      piperAvailable = await withTimeout(api.IsPiperAvailable(), 2000);
+      console.log('Piper available:', piperAvailable);
     } catch (err) {
       console.error('loadProjects error:', err);
       projects = [];
@@ -64,12 +61,8 @@
     selectedProject = project;
     selectedSprint = null;
     try {
-      if (window.go?.main?.App?.SetActiveProject) {
-        await withTimeout(window.go.main.App.SetActiveProject(project.id), 5000);
-      }
-      if (window.go?.main?.App?.GetSprints) {
-        sprints = await withTimeout(window.go.main.App.GetSprints(), 5000) || [];
-      }
+      await withTimeout(api.SetActiveProject(project.id), 5000);
+      sprints = await withTimeout(api.GetSprints(), 5000) || [];
     } catch (err) {
       console.error('selectProject error:', err);
       sprints = [];
@@ -79,11 +72,7 @@
   async function startExam(sprint) {
     selectedSprint = sprint;
     try {
-      if (window.go?.main?.App?.GetSprintQuestions) {
-        questions = await withTimeout(window.go.main.App.GetSprintQuestions(sprint.sprint_number), 5000) || [];
-      } else {
-        questions = [];
-      }
+      questions = await withTimeout(api.GetSprintQuestions(sprint.sprint_number), 5000) || [];
     } catch (err) {
       console.error('GetSprintQuestions error:', err);
       questions = [];
@@ -115,8 +104,8 @@
 
   function stopSpeechAndTypewriter() {
     stopTypewriter();
-    if (isSpeaking && window.go?.main?.App?.StopSpeech) {
-      window.go.main.App.StopSpeech().catch(() => {});
+    if (isSpeaking) {
+      api.StopSpeech().catch(() => {});
     }
     isSpeaking = false;
   }
@@ -136,10 +125,10 @@
     startTypewriter(displayQuestionText);
 
     // Start TTS if piper is available
-    if (piperAvailable && window.go?.main?.App?.SpeakQuestion) {
+    if (piperAvailable) {
       console.log('Speaking question:', selectedSprint.sprint_number, currentQuestionIndex);
       isSpeaking = true;
-      window.go.main.App.SpeakQuestion(selectedSprint.sprint_number, currentQuestionIndex)
+      api.SpeakQuestion(selectedSprint.sprint_number, currentQuestionIndex)
         .then(() => console.log('SpeakQuestion completed'))
         .catch(err => console.error('SpeakQuestion error:', err))
         .finally(() => { isSpeaking = false; });
@@ -227,50 +216,42 @@
     }
 
     try {
-      if (window.go?.main?.App?.SubmitSprintAnswers) {
-        const formattedAnswers = answers.map(a => {
-          if (Array.isArray(a)) return a.join(',');
-          return a || '';
-        });
-        result = await withTimeout(window.go.main.App.SubmitSprintAnswers(
-          selectedSprint.sprint_number,
-          formattedAnswers
-        ), 10000);
+      const formattedAnswers = answers.map(a => {
+        if (Array.isArray(a)) return a.join(',');
+        return a || '';
+      });
+      result = await withTimeout(api.SubmitSprintAnswers(
+        selectedSprint.sprint_number,
+        formattedAnswers
+      ), 10000);
 
-        if (result.passed) {
-          playSprintPassed();
-          if (result.xp_earned > 0) setTimeout(() => playXP(), 600);
-          if (result.domain_level_up) setTimeout(() => playLevelUp(), 1000);
-          if (result.unlocked_achievements?.length > 0) {
-            setTimeout(() => playAchievement(), result.domain_level_up ? 1800 : 1200);
-          }
-        } else {
-          playSprintFailed();
+      if (result.passed) {
+        playSprintPassed();
+        if (result.xp_earned > 0) setTimeout(() => playXP(), 600);
+        if (result.domain_level_up) setTimeout(() => playLevelUp(), 1000);
+        if (result.unlocked_achievements?.length > 0) {
+          setTimeout(() => playAchievement(), result.domain_level_up ? 1800 : 1200);
         }
-
-        if (window.go?.main?.App?.GetSprintExplanations) {
-          explanations = await withTimeout(window.go.main.App.GetSprintExplanations(selectedSprint.sprint_number), 5000) || [];
-        }
-
-        if (!result.passed && result.attempt_number >= 1) {
-          if (window.go?.main?.App?.GetSprintHints) {
-            hints = await withTimeout(window.go.main.App.GetSprintHints(selectedSprint.sprint_number), 5000) || [];
-          }
-        }
-
-        // Refresh sprints list to show updated status
-        if (window.go?.main?.App?.GetSprints) {
-          sprints = await withTimeout(window.go.main.App.GetSprints(), 5000) || [];
-        }
-
-        // Speak result if piper available
-        if (piperAvailable && window.go?.main?.App?.SpeakSprintResult) {
-          window.go.main.App.SpeakSprintResult(result.passed, result.score_percent, result.xp_earned)
-            .catch(err => console.warn('SpeakSprintResult error:', err));
-        }
-
-        view = 'results';
+      } else {
+        playSprintFailed();
       }
+
+      explanations = await withTimeout(api.GetSprintExplanations(selectedSprint.sprint_number), 5000) || [];
+
+      if (!result.passed && result.attempt_number >= 1) {
+        hints = await withTimeout(api.GetSprintHints(selectedSprint.sprint_number), 5000) || [];
+      }
+
+      // Refresh sprints list to show updated status
+      sprints = await withTimeout(api.GetSprints(), 5000) || [];
+
+      // Speak result if piper available
+      if (piperAvailable) {
+        api.SpeakSprintResult(result.passed, result.score_percent, result.xp_earned)
+          .catch(err => console.warn('SpeakSprintResult error:', err));
+      }
+
+      view = 'results';
     } catch (err) {
       console.error('submitExam error:', err);
     }

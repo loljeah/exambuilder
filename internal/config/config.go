@@ -12,6 +12,7 @@ type Config struct {
 	KnowledgeDebt KnowledgeDebtConfig `toml:"knowledge_debt"`
 	Voice         VoiceConfig         `toml:"voice"`
 	Grading       GradingConfig       `toml:"grading"`
+	HTTPBridge    HTTPBridgeConfig    `toml:"http_bridge"`
 
 	// Internal, not serialized
 	configDir string `toml:"-"`
@@ -40,6 +41,11 @@ type GradingConfig struct {
 	StreakBonusAt     int `toml:"streak_bonus_at"`
 	ShowHintsOnFail   int `toml:"show_hints_on_fail"`
 	ShowAnswersOnFail int `toml:"show_answers_on_fail"`
+}
+
+type HTTPBridgeConfig struct {
+	Enabled bool `toml:"enabled"`
+	Port    int  `toml:"port"`
 }
 
 func DefaultConfig() *Config {
@@ -90,6 +96,10 @@ func DefaultConfig() *Config {
 			StreakBonusAt:     3,
 			ShowHintsOnFail:   1,
 			ShowAnswersOnFail: 2,
+		},
+		HTTPBridge: HTTPBridgeConfig{
+			Enabled: false,
+			Port:    3001,
 		},
 	}
 }
