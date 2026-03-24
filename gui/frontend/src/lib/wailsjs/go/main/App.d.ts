@@ -34,9 +34,15 @@ export function GetEquipped():Promise<main.EquippedData>;
 
 export function GetInventory():Promise<Array<main.ShopItemData>>;
 
+export function GetKnowledgeBase():Promise<Array<main.KnowledgeQuestionData>>;
+
+export function GetKnowledgeByDomain(arg1:string):Promise<Array<main.KnowledgeQuestionData>>;
+
 export function GetProfile():Promise<main.ProfileData>;
 
 export function GetProjects():Promise<Array<main.ProjectData>>;
+
+export function GetQuestionSpeechText(arg1:number,arg2:number):Promise<string>;
 
 export function GetShopItems(arg1:string):Promise<Array<main.ShopItemData>>;
 
@@ -54,6 +60,8 @@ export function GetWallet():Promise<main.WalletData>;
 
 export function GetWeeklyGoals():Promise<Array<main.WeeklyGoalData>>;
 
+export function IsPiperAvailable():Promise<boolean>;
+
 export function PurchaseItem(arg1:string):Promise<void>;
 
 export function RemoveProject(arg1:string):Promise<void>;
@@ -65,6 +73,14 @@ export function SetActiveProject(arg1:string):Promise<void>;
 export function SetAvatarName(arg1:string):Promise<void>;
 
 export function SetCreatureType(arg1:string):Promise<void>;
+
+export function SpeakQuestion(arg1:number,arg2:number):Promise<void>;
+
+export function SpeakText(arg1:string):Promise<void>;
+
+export function SpeakTextBlocking(arg1:string):Promise<void>;
+
+export function StopSpeech():Promise<void>;
 
 export function SubmitSprintAnswers(arg1:number,arg2:Array<string>):Promise<main.SprintResultData>;
 

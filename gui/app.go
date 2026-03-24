@@ -15,6 +15,7 @@ import (
 	"github.com/loljeah/exambuilder/internal/db"
 	"github.com/loljeah/exambuilder/internal/exam"
 	"github.com/loljeah/exambuilder/internal/gamification"
+	"github.com/loljeah/exambuilder/internal/voice"
 )
 
 // App struct holds the application state
@@ -23,6 +24,7 @@ type App struct {
 	cfg    *config.Config
 	db     *db.DB
 	sqlDB  *sql.DB
+	voice  *voice.Client
 	mu     sync.RWMutex // Protects active field
 	active string       // Active project ID
 }
@@ -42,6 +44,9 @@ func (a *App) startup(ctx context.Context) {
 		fmt.Println("Config load failed:", err)
 	}
 	a.cfg = cfg
+
+	// Initialize voice client
+	a.voice = voice.NewClient(cfg)
 
 	// Open database
 	home, _ := os.UserHomeDir()
@@ -1374,4 +1379,97 @@ func (a *App) GetKnowledgeByDomain(domainID string) []KnowledgeQuestionData {
 		}
 	}
 	return filtered
+}
+
+// ============================================================================
+// Voice/TTS
+// ============================================================================
+
+// SpeakText sends text to piper-daemon for TTS (non-blocking)
+func (a *App) SpeakText(text string) error {
+	if a.voice == nil {
+		return fmt.Errorf("voice client not initialized")
+	}
+	return a.voice.Speak(text)
+}
+
+// SpeakTextBlocking sends text to piper-daemon and waits for completion
+func (a *App) SpeakTextBlocking(text string) error {
+	if a.voice == nil {
+		return fmt.Errorf("voice client not initialized")
+	}
+	return a.voice.SpeakBlocking(text)
+}
+
+// StopSpeech stops current TTS playback
+func (a *App) StopSpeech() error {
+	if a.voice == nil {
+		return nil
+	}
+	return a.voice.StopSpeech()
+}
+
+// IsPiperAvailable checks if piper-daemon is running
+func (a *App) IsPiperAvailable() bool {
+	if a.voice == nil {
+		return false
+	}
+	return a.voice.IsPiperAvailable()
+}
+
+// GetQuestionSpeechText returns the text that will be spoken for a question
+// Used by frontend to sync typewriter effect with speech
+func (a *App) GetQuestionSpeechText(sprintNumber int, questionIndex int) string {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
+		return ""
+	}
+
+	sprint, err := a.db.GetSprint(activeProject, sprintNumber)
+	if err != nil {
+		return ""
+	}
+
+	var questions []db.Question
+	if err := json.Unmarshal([]byte(sprint.QuestionsJSON), &questions); err != nil {
+		return ""
+	}
+
+	if questionIndex < 0 || questionIndex >= len(questions) {
+		return ""
+	}
+
+	q := &questions[questionIndex]
+	return a.voice.GetQuestionSpeechText(q, questionIndex+1)
+}
+
+// SpeakQuestion reads a specific question aloud
+func (a *App) SpeakQuestion(sprintNumber int, questionIndex int) error {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
+		return fmt.Errorf("no active project")
+	}
+
+	sprint, err := a.db.GetSprint(activeProject, sprintNumber)
+	if err != nil {
+		return err
+	}
+
+	var questions []db.Question
+	if err := json.Unmarshal([]byte(sprint.QuestionsJSON), &questions); err != nil {
+		return err
+	}
+
+	if questionIndex < 0 || questionIndex >= len(questions) {
+		return fmt.Errorf("invalid question index")
+	}
+
+	q := &questions[questionIndex]
+	return a.voice.SpeakQuestion(q, questionIndex+1)
 }

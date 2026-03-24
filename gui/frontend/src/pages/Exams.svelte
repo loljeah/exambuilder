@@ -32,6 +32,13 @@
   let timeElapsed = 0;
   let timerInterval = null;
 
+  // Voice/typewriter state
+  let piperAvailable = false;
+  let isSpeaking = false;
+  let typewriterText = '';
+  let typewriterInterval = null;
+  let fullQuestionText = '';
+
   // Results state
   let result = null;
   let hints = [];
@@ -41,6 +48,11 @@
     try {
       if (window.go?.main?.App?.GetProjects) {
         projects = await withTimeout(window.go.main.App.GetProjects(), 5000) || [];
+      }
+      // Check if piper is available
+      if (window.go?.main?.App?.IsPiperAvailable) {
+        piperAvailable = await withTimeout(window.go.main.App.IsPiperAvailable(), 2000);
+        console.log('Piper available:', piperAvailable);
       }
     } catch (err) {
       console.error('loadProjects error:', err);
@@ -89,11 +101,84 @@
     result = null;
     hints = [];
     explanations = [];
+    typewriterText = '';
+    fullQuestionText = '';
 
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => timeElapsed++, 1000);
 
     view = 'taking';
+
+    // Start voice/typewriter for first question
+    await speakCurrentQuestion();
+  }
+
+  async function speakCurrentQuestion() {
+    // Stop any current speech
+    stopTypewriter();
+    if (isSpeaking && window.go?.main?.App?.StopSpeech) {
+      window.go.main.App.StopSpeech().catch(() => {});
+    }
+    isSpeaking = false;
+    typewriterText = '';
+
+    if (!selectedSprint || currentQuestionIndex < 0) return;
+
+    try {
+      // Get the speech text for typewriter sync
+      if (window.go?.main?.App?.GetQuestionSpeechText) {
+        fullQuestionText = await withTimeout(
+          window.go.main.App.GetQuestionSpeechText(selectedSprint.sprint_number, currentQuestionIndex),
+          3000
+        ) || '';
+      }
+
+      // Start typewriter effect
+      if (fullQuestionText) {
+        startTypewriter(fullQuestionText);
+      }
+
+      // Start TTS if piper is available
+      if (piperAvailable && window.go?.main?.App?.SpeakQuestion) {
+        console.log('Speaking question:', selectedSprint.sprint_number, currentQuestionIndex);
+        isSpeaking = true;
+        window.go.main.App.SpeakQuestion(selectedSprint.sprint_number, currentQuestionIndex)
+          .then(() => console.log('SpeakQuestion completed'))
+          .catch(err => console.error('SpeakQuestion error:', err))
+          .finally(() => { isSpeaking = false; });
+      } else {
+        console.log('Piper not available or SpeakQuestion missing:', piperAvailable, !!window.go?.main?.App?.SpeakQuestion);
+      }
+    } catch (err) {
+      console.warn('speakCurrentQuestion error:', err);
+    }
+  }
+
+  function startTypewriter(text) {
+    stopTypewriter();
+    typewriterText = '';
+    let index = 0;
+    const speed = 30; // ms per character
+
+    typewriterInterval = setInterval(() => {
+      if (index < text.length) {
+        typewriterText += text[index];
+        index++;
+      } else {
+        stopTypewriter();
+      }
+    }, speed);
+  }
+
+  function stopTypewriter() {
+    if (typewriterInterval) {
+      clearInterval(typewriterInterval);
+      typewriterInterval = null;
+    }
+    // Show full text when stopped
+    if (fullQuestionText) {
+      typewriterText = fullQuestionText;
+    }
   }
 
   function selectAnswerOption(optionIndex) {
@@ -118,23 +203,26 @@
     playClick();
   }
 
-  function nextQuestion() {
+  async function nextQuestion() {
     if (currentQuestionIndex < questions.length - 1) {
       currentQuestionIndex++;
       selectedAnswer = answers[currentQuestionIndex];
+      await speakCurrentQuestion();
     }
   }
 
-  function prevQuestion() {
+  async function prevQuestion() {
     if (currentQuestionIndex > 0) {
       currentQuestionIndex--;
       selectedAnswer = answers[currentQuestionIndex];
+      await speakCurrentQuestion();
     }
   }
 
-  function goToQuestion(index) {
+  async function goToQuestion(index) {
     currentQuestionIndex = index;
     selectedAnswer = answers[currentQuestionIndex];
+    await speakCurrentQuestion();
   }
 
   async function submitExam() {
@@ -187,6 +275,11 @@
       clearInterval(timerInterval);
       timerInterval = null;
     }
+    stopTypewriter();
+    if (isSpeaking && window.go?.main?.App?.StopSpeech) {
+      window.go.main.App.StopSpeech().catch(() => {});
+    }
+    isSpeaking = false;
     view = 'select';
     result = null;
   }
@@ -214,6 +307,10 @@
 
   onDestroy(() => {
     if (timerInterval) clearInterval(timerInterval);
+    stopTypewriter();
+    if (isSpeaking && window.go?.main?.App?.StopSpeech) {
+      window.go.main.App.StopSpeech().catch(() => {});
+    }
   });
 </script>
 
@@ -299,49 +396,74 @@
 
     <div class="exam-content">
       {#if currentQuestion}
+        <!-- Question Box -->
         <Card>
           <div class="question-header">
             <span class="question-number">Q{currentQuestion.number}</span>
             <span class="question-tier tier-{currentQuestion.tier?.toLowerCase()}">{currentQuestion.tier}</span>
+            <span class="question-type-badge" class:multi={currentQuestion.type === 'multi'}>
+              {currentQuestion.type === 'multi' ? '☑ Multi' : '○ Single'}
+            </span>
             <span class="question-xp">⭐ {currentQuestion.xp} XP</span>
-          </div>
-
-          <div class="question-text">
-            <p>{currentQuestion.text}</p>
-            {#if currentQuestion.code}
-              <pre class="code-block"><code>{currentQuestion.code}</code></pre>
+            {#if piperAvailable}
+              <button class="voice-btn" class:speaking={isSpeaking} on:click={speakCurrentQuestion} title="Read aloud">
+                {isSpeaking ? '🔊' : '🔈'}
+              </button>
             {/if}
           </div>
 
-          {#if currentQuestion.type === 'multi'}
-            <div class="multi-hint">
-              <span>☑️</span>
-              <span>Select ALL that apply</span>
+          <div class="question-box">
+            <div class="question-label">Question</div>
+            <div class="question-text">
+              {#if typewriterText}
+                <p class="typewriter">{typewriterText}</p>
+              {:else}
+                <p>{currentQuestion.text}</p>
+              {/if}
+              {#if currentQuestion.code}
+                <pre class="code-block"><code>{currentQuestion.code}</code></pre>
+              {/if}
             </div>
-          {/if}
+          </div>
+        </Card>
 
-          <div class="options-list">
-            {#each currentQuestion.options as option, i}
-              {@const letter = String.fromCharCode(65 + i)}
-              {@const isSelected = currentQuestion.type === 'multi'
-                ? Array.isArray(selectedAnswer) && selectedAnswer.includes(letter)
-                : selectedAnswer === letter}
-              <button
-                class="option-btn"
-                class:selected={isSelected}
-                class:multi={currentQuestion.type === 'multi'}
-                on:click={() => selectAnswerOption(i)}
-              >
-                <span class="option-letter">
-                  {#if currentQuestion.type === 'multi'}
-                    {isSelected ? '☑' : '☐'}
-                  {:else}
-                    {letter}
-                  {/if}
-                </span>
-                <span class="option-text">{option}</span>
-              </button>
-            {/each}
+        <!-- Answers Box -->
+        <Card>
+          <div class="answers-box">
+            <div class="answers-label">
+              {#if currentQuestion.type === 'multi'}
+                <span class="multi-indicator">☑</span>
+                <span>Select ALL that apply</span>
+              {:else}
+                <span class="single-indicator">○</span>
+                <span>Choose one answer</span>
+              {/if}
+            </div>
+
+            <div class="options-list">
+              {#each currentQuestion.options as option, i}
+                {@const letter = String.fromCharCode(65 + i)}
+                {@const isSelected = currentQuestion.type === 'multi'
+                  ? Array.isArray(selectedAnswer) && selectedAnswer.includes(letter)
+                  : selectedAnswer === letter}
+                <button
+                  class="option-btn"
+                  class:selected={isSelected}
+                  class:multi={currentQuestion.type === 'multi'}
+                  on:click={() => selectAnswerOption(i)}
+                >
+                  <span class="option-letter">
+                    {#if currentQuestion.type === 'multi'}
+                      {isSelected ? '☑' : '☐'}
+                    {:else}
+                      {isSelected ? '◉' : '○'}
+                    {/if}
+                  </span>
+                  <span class="option-letter-label">{letter}</span>
+                  <span class="option-text">{option}</span>
+                </button>
+              {/each}
+            </div>
           </div>
         </Card>
 
@@ -477,8 +599,19 @@
 
 <style>
   .exams-page {
-    max-width: 1000px;
+    max-width: 100%;
+    width: 100%;
     margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  .exam-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .page-title {
@@ -687,42 +820,124 @@
   .tier-medium { background: var(--primary-500); color: white; }
   .tier-boss, .tier-hard { background: var(--accent-red); color: white; }
 
+  .question-type-badge {
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+  }
+
+  .question-type-badge.multi {
+    background: var(--primary-700);
+    color: var(--primary-200);
+  }
+
   .question-xp {
     margin-left: auto;
     color: var(--accent-gold);
   }
 
+  .voice-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.15s;
+  }
+
+  .voice-btn:hover {
+    background: var(--primary-700);
+  }
+
+  .voice-btn.speaking {
+    background: var(--primary-500);
+    animation: pulse-voice 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse-voice {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  .question-box {
+    border: 1px solid var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    background: var(--bg-primary);
+    overflow: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .question-label, .answers-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .multi-indicator {
+    color: var(--primary-400);
+    font-size: 16px;
+  }
+
+  .single-indicator {
+    color: var(--text-muted);
+    font-size: 16px;
+  }
+
   .question-text {
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: 0;
   }
 
   .question-text p {
     font-size: 16px;
     line-height: 1.6;
     margin: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  .question-text .typewriter {
+    display: inline;
+    border-right: 2px solid var(--primary-400);
+    animation: blink-cursor 0.7s step-end infinite;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  @keyframes blink-cursor {
+    0%, 100% { border-color: var(--primary-400); }
+    50% { border-color: transparent; }
   }
 
   .code-block {
     margin-top: var(--spacing-md);
     padding: var(--spacing-md);
-    background: var(--bg-primary);
+    background: var(--bg-card);
     border-radius: var(--radius-md);
     overflow-x: auto;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
     font-size: 13px;
   }
 
-  .multi-hint {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--primary-900);
-    border: 1px solid var(--primary-600);
-    border-radius: var(--radius-md);
-    margin-bottom: var(--spacing-md);
-    font-size: 13px;
-    color: var(--primary-300);
+  .answers-box {
+    padding: var(--spacing-sm);
   }
 
   .options-list {
@@ -755,32 +970,42 @@
   }
 
   .option-letter {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: var(--text-muted);
+  }
+
+  .option-btn.selected .option-letter {
+    color: var(--primary-400);
+  }
+
+  .option-btn.multi .option-letter {
+    font-size: 18px;
+  }
+
+  .option-btn.multi.selected .option-letter {
+    color: var(--primary-400);
+  }
+
+  .option-letter-label {
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--bg-card);
     border-radius: 50%;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 12px;
+    color: var(--text-secondary);
   }
 
-  .option-btn.selected .option-letter {
+  .option-btn.selected .option-letter-label {
     background: var(--primary-500);
-    color: white;
-  }
-
-  .option-btn.multi .option-letter {
-    border-radius: var(--radius-sm);
-    background: transparent;
-    border: 2px solid var(--text-muted);
-    font-size: 16px;
-  }
-
-  .option-btn.multi.selected .option-letter {
-    background: var(--primary-500);
-    border-color: var(--primary-500);
     color: white;
   }
 

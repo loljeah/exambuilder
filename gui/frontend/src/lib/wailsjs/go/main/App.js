@@ -66,12 +66,24 @@ export function GetInventory() {
   return window['go']['main']['App']['GetInventory']();
 }
 
+export function GetKnowledgeBase() {
+  return window['go']['main']['App']['GetKnowledgeBase']();
+}
+
+export function GetKnowledgeByDomain(arg1) {
+  return window['go']['main']['App']['GetKnowledgeByDomain'](arg1);
+}
+
 export function GetProfile() {
   return window['go']['main']['App']['GetProfile']();
 }
 
 export function GetProjects() {
   return window['go']['main']['App']['GetProjects']();
+}
+
+export function GetQuestionSpeechText(arg1, arg2) {
+  return window['go']['main']['App']['GetQuestionSpeechText'](arg1, arg2);
 }
 
 export function GetShopItems(arg1) {
@@ -106,6 +118,10 @@ export function GetWeeklyGoals() {
   return window['go']['main']['App']['GetWeeklyGoals']();
 }
 
+export function IsPiperAvailable() {
+  return window['go']['main']['App']['IsPiperAvailable']();
+}
+
 export function PurchaseItem(arg1) {
   return window['go']['main']['App']['PurchaseItem'](arg1);
 }
@@ -128,6 +144,22 @@ export function SetAvatarName(arg1) {
 
 export function SetCreatureType(arg1) {
   return window['go']['main']['App']['SetCreatureType'](arg1);
+}
+
+export function SpeakQuestion(arg1, arg2) {
+  return window['go']['main']['App']['SpeakQuestion'](arg1, arg2);
+}
+
+export function SpeakText(arg1) {
+  return window['go']['main']['App']['SpeakText'](arg1);
+}
+
+export function SpeakTextBlocking(arg1) {
+  return window['go']['main']['App']['SpeakTextBlocking'](arg1);
+}
+
+export function StopSpeech() {
+  return window['go']['main']['App']['StopSpeech']();
 }
 
 export function SubmitSprintAnswers(arg1, arg2) {
