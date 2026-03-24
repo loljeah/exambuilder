@@ -12,6 +12,7 @@ import (
 
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
+	"github.com/loljeah/exambuilder/internal/exam"
 	"github.com/loljeah/exambuilder/internal/gamification"
 )
 
@@ -272,6 +273,36 @@ type SprintData struct {
 	BestScore    int    `json:"best_score"`
 	Attempts     int    `json:"attempts"`
 	XPAvailable  int    `json:"xp_available"`
+	XPEarned     int    `json:"xp_earned"`
+	DomainID     string `json:"domain_id"`
+}
+
+type DomainData struct {
+	ID             string `json:"id"`
+	DomainID       string `json:"domain_id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Color          string `json:"color"`
+	Icon           string `json:"icon"`
+	TotalXP        int    `json:"total_xp"`
+	EarnedXP       int    `json:"earned_xp"`
+	Level          int    `json:"level"`
+	LevelTitle     string `json:"level_title"`
+	NextLevelXP    int    `json:"next_level_xp"`
+	SprintsTotal   int    `json:"sprints_total"`
+	SprintsPassed  int    `json:"sprints_passed"`
+	SprintsPerfect int    `json:"sprints_perfect"`
+	ProgressPct    int    `json:"progress_pct"`
+}
+
+type DomainAchievementData struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Icon        string  `json:"icon"`
+	XPReward    int     `json:"xp_reward"`
+	Unlocked    bool    `json:"unlocked"`
+	UnlockedAt  *string `json:"unlocked_at"`
 }
 
 func (a *App) GetProjects() []ProjectData {
@@ -288,6 +319,200 @@ func (a *App) GetProjects() []ProjectData {
 		})
 	}
 	return result
+}
+
+// AddProject adds a new project by path
+func (a *App) AddProject(path string) error {
+	// Expand ~ to home directory
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("get home directory: %w", err)
+		}
+		path = filepath.Join(home, path[2:])
+	}
+
+	// Make path absolute
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("get absolute path: %w", err)
+	}
+
+	// Verify path exists
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		return fmt.Errorf("path does not exist: %s", absPath)
+	}
+
+	_, err = a.db.GetOrCreateProject(absPath)
+	return err
+}
+
+// RemoveProject removes a project and all its associated data
+func (a *App) RemoveProject(projectID string) error {
+	return a.db.DeleteProject(projectID)
+}
+
+// ScanAndImportExams scans a project for exam_*.toml and exam_*.md files and imports them
+func (a *App) ScanAndImportExams(projectID string) (string, error) {
+	project, err := a.db.GetProject(projectID)
+	if err != nil {
+		return "", err
+	}
+
+	// Look for exam files (TOML preferred, then markdown)
+	var matches []string
+
+	// First try TOML (v2.0 format)
+	tomlPattern := filepath.Join(project.Path, "exam_*.toml")
+	tomlMatches, _ := filepath.Glob(tomlPattern)
+	matches = append(matches, tomlMatches...)
+
+	// Then try markdown (legacy format)
+	mdPattern := filepath.Join(project.Path, "exam_*.md")
+	mdMatches, _ := filepath.Glob(mdPattern)
+	matches = append(matches, mdMatches...)
+
+	if len(matches) == 0 {
+		return "No exam_*.toml or exam_*.md files found in " + project.Path, nil
+	}
+
+	totalSprints := 0
+	var errors []string
+
+	for _, examFile := range matches {
+		var parsedSprints []exam.ParsedSprint
+
+		if strings.HasSuffix(examFile, ".toml") {
+			// TOML v2.0 format
+			examData, err := exam.ParseExamTOML(examFile)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("%s: %v", filepath.Base(examFile), err))
+				continue
+			}
+
+			// Convert to DB sprints directly
+			dbSprints, err := examData.ToDBSprints(projectID)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("%s: convert error: %v", filepath.Base(examFile), err))
+				continue
+			}
+
+			for _, dbSprint := range dbSprints {
+				if err := a.db.UpsertSprint(dbSprint); err != nil {
+					errors = append(errors, fmt.Sprintf("sprint %d: db error: %v", dbSprint.SprintNumber, err))
+					continue
+				}
+				totalSprints++
+			}
+
+			// Import domains from TOML
+			for _, domain := range examData.GetDomains() {
+				// Calculate total XP for domain from sprints
+				domainTotalXP := domain.TotalXP
+				sprintsInDomain := 0
+				for _, s := range dbSprints {
+					if s.DomainID == domain.ID {
+						sprintsInDomain++
+						if domainTotalXP == 0 {
+							domainTotalXP += s.XPAvailable
+						}
+					}
+				}
+
+				dbDomain := &db.Domain{
+					ID:           fmt.Sprintf("%s_%s", project.ID, domain.ID),
+					ProjectID:    project.ID,
+					DomainID:     domain.ID,
+					Name:         domain.Name,
+					Description:  domain.Description,
+					Color:        domain.Color,
+					Icon:         domain.Icon,
+					TotalXP:      domainTotalXP,
+					SprintsTotal: sprintsInDomain,
+				}
+				if err := a.db.UpsertDomain(dbDomain); err != nil {
+					errors = append(errors, fmt.Sprintf("domain %s: db error: %v", domain.ID, err))
+				}
+			}
+
+			// Import domain levels from TOML
+			for _, dl := range examData.GetDomainLevels() {
+				for i, threshold := range dl.Levels {
+					title := "Level " + fmt.Sprintf("%d", i+1)
+					if i < len(dl.Titles) {
+						title = dl.Titles[i]
+					}
+					dbLevel := &db.DomainLevel{
+						ProjectID:   project.ID,
+						DomainID:    dl.Domain,
+						Level:       i + 1,
+						XPThreshold: threshold,
+						Title:       title,
+					}
+					if err := a.db.UpsertDomainLevel(dbLevel); err != nil {
+						errors = append(errors, fmt.Sprintf("domain level %s/%d: db error: %v", dl.Domain, i+1, err))
+					}
+				}
+			}
+
+			// Import domain achievements from TOML
+			for _, ach := range examData.GetDomainAchievements() {
+				dbAch := &db.DomainAchievement{
+					ID:          fmt.Sprintf("%s_%s", project.ID, ach.ID),
+					ProjectID:   project.ID,
+					DomainID:    ach.Domain,
+					Name:        ach.Name,
+					Description: ach.Description,
+					Condition:   ach.Condition,
+					XPReward:    ach.XPReward,
+					Icon:        ach.Icon,
+				}
+				if err := a.db.UpsertDomainAchievement(dbAch); err != nil {
+					errors = append(errors, fmt.Sprintf("domain achievement %s: db error: %v", ach.ID, err))
+				}
+			}
+
+			continue
+		}
+
+		// Legacy markdown format
+		content, err := os.ReadFile(examFile)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: read error: %v", filepath.Base(examFile), err))
+			continue
+		}
+
+		parsedSprints, err = exam.ParseExamFile(string(content))
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: parse error: %v", filepath.Base(examFile), err))
+			continue
+		}
+
+		if len(parsedSprints) == 0 {
+			errors = append(errors, fmt.Sprintf("%s: no sprints found", filepath.Base(examFile)))
+			continue
+		}
+
+		for _, ps := range parsedSprints {
+			dbSprint, err := ps.ToDBSprint(projectID)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("sprint %d: %v", ps.Number, err))
+				continue
+			}
+
+			if err := a.db.UpsertSprint(dbSprint); err != nil {
+				errors = append(errors, fmt.Sprintf("sprint %d: db error: %v", ps.Number, err))
+				continue
+			}
+			totalSprints++
+		}
+	}
+
+	result := fmt.Sprintf("Imported %d sprints from %d file(s)", totalSprints, len(matches))
+	if len(errors) > 0 {
+		result += fmt.Sprintf(" with %d warnings: %s", len(errors), strings.Join(errors, "; "))
+	}
+	return result, nil
 }
 
 func (a *App) SetActiveProject(projectID string) error {
@@ -328,6 +553,91 @@ func (a *App) GetSprints() []SprintData {
 			BestScore:    score,
 			Attempts:     s.Attempts,
 			XPAvailable:  s.XPAvailable,
+			XPEarned:     s.XPEarned,
+			DomainID:     s.DomainID,
+		})
+	}
+	return result
+}
+
+// GetDomains returns all knowledge domains for the active project
+func (a *App) GetDomains() []DomainData {
+	if a.active == "" {
+		return nil
+	}
+
+	domains, err := a.db.GetDomains(a.active)
+	if err != nil {
+		return nil
+	}
+
+	var result []DomainData
+	for _, d := range domains {
+		// Get current level title and next level XP
+		levelTitle := "Novice"
+		nextLevelXP := 100
+		levels, _ := a.db.GetDomainLevels(a.active, d.DomainID)
+		for _, lvl := range levels {
+			if lvl.Level == d.Level {
+				levelTitle = lvl.Title
+			}
+			if lvl.Level == d.Level+1 {
+				nextLevelXP = lvl.XPThreshold
+			}
+		}
+
+		progressPct := 0
+		if d.TotalXP > 0 {
+			progressPct = (d.EarnedXP * 100) / d.TotalXP
+		}
+
+		result = append(result, DomainData{
+			ID:             d.ID,
+			DomainID:       d.DomainID,
+			Name:           d.Name,
+			Description:    d.Description,
+			Color:          d.Color,
+			Icon:           d.Icon,
+			TotalXP:        d.TotalXP,
+			EarnedXP:       d.EarnedXP,
+			Level:          d.Level,
+			LevelTitle:     levelTitle,
+			NextLevelXP:    nextLevelXP,
+			SprintsTotal:   d.SprintsTotal,
+			SprintsPassed:  d.SprintsPassed,
+			SprintsPerfect: d.SprintsPerfect,
+			ProgressPct:    progressPct,
+		})
+	}
+	return result
+}
+
+// GetDomainAchievements returns achievements for a specific domain
+func (a *App) GetDomainAchievements(domainID string) []DomainAchievementData {
+	if a.active == "" {
+		return nil
+	}
+
+	achievements, err := a.db.GetDomainAchievements(a.active, domainID)
+	if err != nil {
+		return nil
+	}
+
+	var result []DomainAchievementData
+	for _, ach := range achievements {
+		var unlockedAt *string
+		if ach.UnlockedAt != nil {
+			s := ach.UnlockedAt.Format("2006-01-02")
+			unlockedAt = &s
+		}
+		result = append(result, DomainAchievementData{
+			ID:          ach.ID,
+			Name:        ach.Name,
+			Description: ach.Description,
+			Icon:        ach.Icon,
+			XPReward:    ach.XPReward,
+			Unlocked:    ach.Unlocked,
+			UnlockedAt:  unlockedAt,
 		})
 	}
 	return result
@@ -621,17 +931,29 @@ type DailyStatsData struct {
 // ============================================================================
 
 type SprintResultData struct {
-	SprintNum       int                  `json:"sprint_num"`
-	Topic           string               `json:"topic"`
-	Passed          bool                 `json:"passed"`
-	ScorePercent    int                  `json:"score_percent"`
-	CorrectCount    int                  `json:"correct_count"`
-	TotalQuestions  int                  `json:"total_questions"`
-	XPEarned        int                  `json:"xp_earned"`
-	XPAvailable     int                  `json:"xp_available"`
-	AttemptNumber   int                  `json:"attempt_number"`
-	CoinsEarned     int                  `json:"coins_earned"`
-	QuestionResults []QuestionResultData `json:"question_results"`
+	SprintNum            int                     `json:"sprint_num"`
+	Topic                string                  `json:"topic"`
+	Passed               bool                    `json:"passed"`
+	ScorePercent         int                     `json:"score_percent"`
+	CorrectCount         int                     `json:"correct_count"`
+	TotalQuestions       int                     `json:"total_questions"`
+	XPEarned             int                     `json:"xp_earned"`
+	XPAvailable          int                     `json:"xp_available"`
+	AttemptNumber        int                     `json:"attempt_number"`
+	CoinsEarned          int                     `json:"coins_earned"`
+	QuestionResults      []QuestionResultData    `json:"question_results"`
+	DomainLevelUp        bool                    `json:"domain_level_up"`
+	DomainNewLevel       int                     `json:"domain_new_level"`
+	DomainNewTitle       string                  `json:"domain_new_title"`
+	DomainName           string                  `json:"domain_name"`
+	UnlockedAchievements []UnlockedAchievementData `json:"unlocked_achievements"`
+}
+
+type UnlockedAchievementData struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Icon     string `json:"icon"`
+	XPReward int    `json:"xp_reward"`
 }
 
 type QuestionResultData struct {
@@ -732,17 +1054,68 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 	}
 
 	// Award XP and coins
-	if result.XPEarned > 0 {
-		a.db.AddXP(result.XPEarned)
+	isFirstPass := result.Passed && sprint.Status != "passed"
+	xpToAward := 0
+	if isFirstPass {
+		xpToAward = result.XPEarned
+	} else if sprint.Status == "passed" {
+		// Already passed - no XP on replay
+		result.XPEarned = 0
 	}
-	if result.CoinsEarned > 0 {
-		gamification.AddCoins(a.sqlDB, result.CoinsEarned, "sprint_completed", fmt.Sprintf("sprint_%d", sprintNumber))
+
+	if xpToAward > 0 {
+		a.db.AddXP(xpToAward)
+	}
+
+	// Coins: full reward on first pass, reduced on replay
+	coinsToAward := result.CoinsEarned
+	if sprint.Status == "passed" {
+		coinsToAward = result.CorrectCount
+	}
+	if coinsToAward > 0 {
+		gamification.AddCoins(a.sqlDB, coinsToAward, "sprint_completed", fmt.Sprintf("sprint_%d", sprintNumber))
+	}
+	result.CoinsEarned = coinsToAward
+
+	// Domain XP and level tracking
+	if sprint.DomainID != "" && xpToAward > 0 {
+		levelUp, err := a.db.AddDomainXP(a.active, sprint.DomainID, xpToAward)
+		if err == nil && levelUp != nil && levelUp.LeveledUp {
+			result.DomainLevelUp = true
+			result.DomainNewLevel = levelUp.NewLevel
+			result.DomainNewTitle = levelUp.NewTitle
+			// Get domain name
+			if dom, err := a.db.GetDomainByID(a.active, sprint.DomainID); err == nil {
+				result.DomainName = dom.Name
+			}
+		}
+	}
+
+	// Update domain stats on first pass
+	if isFirstPass && sprint.DomainID != "" {
+		perfect := result.ScorePercent == 100
+		a.db.RecordDomainSprintComplete(a.active, sprint.DomainID, true, perfect)
+
+		// Check domain achievements
+		unlocked, _ := a.db.EvaluateAchievements(a.active, sprint.DomainID)
+		for _, ach := range unlocked {
+			result.UnlockedAchievements = append(result.UnlockedAchievements, UnlockedAchievementData{
+				ID:       ach.ID,
+				Name:     ach.Name,
+				Icon:     ach.Icon,
+				XPReward: ach.XPReward,
+			})
+			// Award achievement XP
+			if ach.XPReward > 0 {
+				a.db.AddXP(ach.XPReward)
+			}
+		}
 	}
 
 	// Update daily stats
-	a.db.RecordSprintAttempt(result.Passed, result.CorrectCount, result.TotalQuestions, result.XPEarned)
+	a.db.RecordSprintAttempt(result.Passed, result.CorrectCount, result.TotalQuestions, xpToAward)
 
-	// Check achievements
+	// Check global achievements
 	stats, _ := gamification.GatherPlayerStats(a.sqlDB)
 	if stats != nil {
 		gamification.CheckAndUnlockAchievements(a.sqlDB, stats)
@@ -841,4 +1214,114 @@ func (a *App) GetStats(period string) []DailyStatsData {
 		})
 	}
 	return result
+}
+
+// ============================================================================
+// Knowledge Base Catalogue
+// ============================================================================
+
+type KnowledgeQuestionData struct {
+	SprintNumber int      `json:"sprint_number"`
+	SprintTopic  string   `json:"sprint_topic"`
+	QuestionNum  int      `json:"question_num"`
+	Tier         string   `json:"tier"`
+	Difficulty   int      `json:"difficulty"`
+	XP           int      `json:"xp"`
+	Text         string   `json:"text"`
+	Code         string   `json:"code"`
+	Options      []string `json:"options"`
+	CorrectIdx   int      `json:"correct_idx"`
+	DomainID     string   `json:"domain_id"`
+	DomainName   string   `json:"domain_name"`
+	Hint         string   `json:"hint"`
+	Explanation  string   `json:"explanation"`
+	// User stats
+	TimesAnswered int  `json:"times_answered"`
+	TimesCorrect  int  `json:"times_correct"`
+	LastAnswered  *string `json:"last_answered"`
+	Mastered      bool `json:"mastered"`
+}
+
+// GetKnowledgeBase returns all questions organized by domain
+func (a *App) GetKnowledgeBase() []KnowledgeQuestionData {
+	if a.active == "" {
+		return nil
+	}
+
+	// Get all sprints
+	sprints, err := a.db.GetSprints(a.active)
+	if err != nil {
+		return nil
+	}
+
+	// Get domains for names
+	domainNames := make(map[string]string)
+	if domains, err := a.db.GetDomains(a.active); err == nil {
+		for _, d := range domains {
+			domainNames[d.DomainID] = d.Name
+		}
+	}
+
+	var result []KnowledgeQuestionData
+
+	for _, sprint := range sprints {
+		// Parse questions
+		var questions []db.Question
+		if err := json.Unmarshal([]byte(sprint.QuestionsJSON), &questions); err != nil {
+			continue
+		}
+
+		// Parse answer key for hints/explanations
+		var answerKey db.AnswerKey
+		json.Unmarshal([]byte(sprint.AnswerKeyJSON), &answerKey)
+
+		for i, q := range questions {
+			kq := KnowledgeQuestionData{
+				SprintNumber: sprint.SprintNumber,
+				SprintTopic:  sprint.Topic,
+				QuestionNum:  q.Number,
+				Tier:         q.Tier,
+				Difficulty:   q.Stars,
+				XP:           q.XP,
+				Text:         q.Text,
+				Code:         q.Code,
+				Options:      q.Options,
+				CorrectIdx:   q.CorrectIdx,
+				DomainID:     sprint.DomainID,
+				DomainName:   domainNames[sprint.DomainID],
+			}
+
+			// Add hint and explanation if available
+			if i < len(answerKey.Hints) {
+				kq.Hint = answerKey.Hints[i]
+			}
+			if i < len(answerKey.Explanations) {
+				kq.Explanation = answerKey.Explanations[i]
+			}
+
+			// TODO: Get question stats from question_stats table
+			// For now, mark as mastered if sprint is passed
+			kq.Mastered = sprint.Status == "passed"
+
+			result = append(result, kq)
+		}
+	}
+
+	return result
+}
+
+// GetKnowledgeByDomain returns questions filtered by domain
+func (a *App) GetKnowledgeByDomain(domainID string) []KnowledgeQuestionData {
+	all := a.GetKnowledgeBase()
+	if domainID == "" {
+		return all
+	}
+
+	var filtered []KnowledgeQuestionData
+	for _, q := range all {
+		if q.DomainID == domainID {
+			filtered = append(filtered, q)
+		}
+	}
+	return filtered
 }

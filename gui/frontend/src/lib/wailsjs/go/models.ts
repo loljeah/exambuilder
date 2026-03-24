@@ -230,6 +230,70 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class DomainAchievementData {
+	    id: string;
+	    name: string;
+	    description: string;
+	    icon: string;
+	    xp_reward: number;
+	    unlocked: boolean;
+	    unlocked_at?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainAchievementData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.icon = source["icon"];
+	        this.xp_reward = source["xp_reward"];
+	        this.unlocked = source["unlocked"];
+	        this.unlocked_at = source["unlocked_at"];
+	    }
+	}
+	export class DomainData {
+	    id: string;
+	    domain_id: string;
+	    name: string;
+	    description: string;
+	    color: string;
+	    icon: string;
+	    total_xp: number;
+	    earned_xp: number;
+	    level: number;
+	    level_title: string;
+	    next_level_xp: number;
+	    sprints_total: number;
+	    sprints_passed: number;
+	    sprints_perfect: number;
+	    progress_pct: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.domain_id = source["domain_id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.color = source["color"];
+	        this.icon = source["icon"];
+	        this.total_xp = source["total_xp"];
+	        this.earned_xp = source["earned_xp"];
+	        this.level = source["level"];
+	        this.level_title = source["level_title"];
+	        this.next_level_xp = source["next_level_xp"];
+	        this.sprints_total = source["sprints_total"];
+	        this.sprints_passed = source["sprints_passed"];
+	        this.sprints_perfect = source["sprints_perfect"];
+	        this.progress_pct = source["progress_pct"];
+	    }
+	}
 	export class EquippedData {
 	    hat_id: string;
 	    held_id: string;
@@ -330,6 +394,8 @@ export namespace main {
 	    best_score: number;
 	    attempts: number;
 	    xp_available: number;
+	    xp_earned: number;
+	    domain_id: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SprintData(source);
@@ -344,6 +410,26 @@ export namespace main {
 	        this.best_score = source["best_score"];
 	        this.attempts = source["attempts"];
 	        this.xp_available = source["xp_available"];
+	        this.xp_earned = source["xp_earned"];
+	        this.domain_id = source["domain_id"];
+	    }
+	}
+	export class UnlockedAchievementData {
+	    id: string;
+	    name: string;
+	    icon: string;
+	    xp_reward: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UnlockedAchievementData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.icon = source["icon"];
+	        this.xp_reward = source["xp_reward"];
 	    }
 	}
 	export class SprintResultData {
@@ -358,6 +444,11 @@ export namespace main {
 	    attempt_number: number;
 	    coins_earned: number;
 	    question_results: QuestionResultData[];
+	    domain_level_up: boolean;
+	    domain_new_level: number;
+	    domain_new_title: string;
+	    domain_name: string;
+	    unlocked_achievements: UnlockedAchievementData[];
 	
 	    static createFrom(source: any = {}) {
 	        return new SprintResultData(source);
@@ -376,6 +467,11 @@ export namespace main {
 	        this.attempt_number = source["attempt_number"];
 	        this.coins_earned = source["coins_earned"];
 	        this.question_results = this.convertValues(source["question_results"], QuestionResultData);
+	        this.domain_level_up = source["domain_level_up"];
+	        this.domain_new_level = source["domain_new_level"];
+	        this.domain_new_title = source["domain_new_title"];
+	        this.domain_name = source["domain_name"];
+	        this.unlocked_achievements = this.convertValues(source["unlocked_achievements"], UnlockedAchievementData);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -396,6 +492,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 
 }

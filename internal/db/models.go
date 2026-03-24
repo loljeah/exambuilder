@@ -7,12 +7,13 @@ import "time"
 // ============================================================================
 
 type Project struct {
-	ID         string
-	FullHash   string
-	Path       string
-	Name       string
-	CreatedAt  time.Time
-	LastActive time.Time
+	ID          string
+	FullHash    string
+	Path        string
+	Name        string
+	ContentType string // code, medical, legal, scientific, technical, study, other
+	CreatedAt   time.Time
+	LastActive  time.Time
 }
 
 type Sprint struct {
@@ -20,6 +21,8 @@ type Sprint struct {
 	ProjectID     string
 	SprintNumber  int
 	Topic         string
+	DomainID      string // References domain.id
+	SubdomainID   string // Optional finer categorization
 	QuestionsJSON string
 	AnswerKeyJSON string
 	Status        string // pending, passed, failed
@@ -29,6 +32,80 @@ type Sprint struct {
 	XPEarned      int
 	CreatedAt     time.Time
 	PassedAt      *time.Time
+}
+
+// ============================================================================
+// DOMAIN TRACKING
+// ============================================================================
+
+type Domain struct {
+	ID            string // project_id + "_" + domain_id
+	ProjectID     string
+	DomainID      string
+	Name          string
+	Description   string
+	Color         string
+	Icon          string
+	TotalXP       int
+	EarnedXP      int
+	Level         int
+	SprintsTotal  int
+	SprintsPassed int
+	SprintsPerfect int
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type DomainLevel struct {
+	ID          int64
+	ProjectID   string
+	DomainID    string
+	Level       int
+	XPThreshold int
+	Title       string
+}
+
+type DomainAchievement struct {
+	ID          string // project_id + "_" + achievement_id
+	ProjectID   string
+	DomainID    string
+	Name        string
+	Description string
+	Condition   string
+	XPReward    int
+	Icon        string
+	Unlocked    bool
+	UnlockedAt  *time.Time
+}
+
+type Subdomain struct {
+	ID          string // project_id + "_" + domain_id + "_" + subdomain_id
+	ProjectID   string
+	DomainID    string
+	SubdomainID string
+	Name        string
+	TotalXP     int
+	EarnedXP    int
+}
+
+type DomainStats struct {
+	ID               int64
+	ProjectID        string
+	DomainID         string
+	QuestionsTotal   int
+	QuestionsCorrect int
+	TimeSpentSeconds int
+	CurrentStreak    int
+	BestStreak       int
+	LastActivity     *time.Time
+}
+
+// LevelUpResult contains info about domain level changes
+type LevelUpResult struct {
+	OldLevel  int
+	NewLevel  int
+	LeveledUp bool
+	NewTitle  string
 }
 
 type Profile struct {
@@ -319,14 +396,16 @@ type ExportHistory struct {
 // ============================================================================
 
 type Question struct {
-	Number     int      `json:"number"`
-	Tier       string   `json:"tier"`
-	Stars      int      `json:"stars"`
-	XP         int      `json:"xp"`
-	Text       string   `json:"text"`
-	Code       string   `json:"code,omitempty"`
-	Options    []string `json:"options"`
-	CorrectIdx int      `json:"correct_idx"`
+	Number      int      `json:"number"`
+	Tier        string   `json:"tier"`
+	Stars       int      `json:"stars"`
+	XP          int      `json:"xp"`
+	Text        string   `json:"text"`
+	Code        string   `json:"code,omitempty"`
+	Options     []string `json:"options"`
+	CorrectIdx  int      `json:"correct_idx"`            // For single choice
+	CorrectIdxs []int    `json:"correct_idxs,omitempty"` // For multi choice
+	Type        string   `json:"type,omitempty"`         // "single" (default) or "multi"
 }
 
 type AnswerKey struct {

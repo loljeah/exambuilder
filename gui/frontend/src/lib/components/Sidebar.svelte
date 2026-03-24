@@ -10,14 +10,16 @@
   const navItems = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard', shortcut: '⌘1' },
     { id: 'exams', icon: '📝', label: 'Exams', shortcut: '⌘2' },
-    { id: 'review', icon: '🔄', label: 'Review', shortcut: '⌘3' },
-    { id: 'stats', icon: '📈', label: 'Statistics', shortcut: '⌘4' },
-    { id: 'shop', icon: '🛒', label: 'Shop', shortcut: '⌘5' },
-    { id: 'achievements', icon: '🏆', label: 'Achievements', shortcut: '⌘6' },
+    { id: 'knowledge', icon: '📚', label: 'Knowledge', shortcut: '⌘3' },
+    { id: 'review', icon: '🔄', label: 'Review', shortcut: '⌘4' },
+    { id: 'stats', icon: '📈', label: 'Statistics', shortcut: '⌘5' },
+    { id: 'shop', icon: '🛒', label: 'Shop', shortcut: '⌘6' },
+    { id: 'achievements', icon: '🏆', label: 'Achievements', shortcut: '⌘7' },
     { id: 'settings', icon: '⚙️', label: 'Settings', shortcut: '⌘,' },
   ];
 
   function navigate(page) {
+    console.log('Sidebar navigate clicked:', page);
     dispatch('navigate', page);
   }
 

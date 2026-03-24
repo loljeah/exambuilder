@@ -3,6 +3,7 @@
   import Sidebar from './lib/components/Sidebar.svelte';
   import Dashboard from './pages/Dashboard.svelte';
   import Exams from './pages/Exams.svelte';
+  import KnowledgeBase from './pages/KnowledgeBase.svelte';
   import Review from './pages/Review.svelte';
   import Stats from './pages/Stats.svelte';
   import Shop from './pages/Shop.svelte';
@@ -15,6 +16,7 @@
   const pages = {
     dashboard: Dashboard,
     exams: Exams,
+    knowledge: KnowledgeBase,
     review: Review,
     stats: Stats,
     shop: Shop,
@@ -32,18 +34,22 @@
       switch(e.key) {
         case '1': navigate('dashboard'); e.preventDefault(); break;
         case '2': navigate('exams'); e.preventDefault(); break;
-        case '3': navigate('review'); e.preventDefault(); break;
-        case '4': navigate('stats'); e.preventDefault(); break;
-        case '5': navigate('shop'); e.preventDefault(); break;
-        case '6': navigate('achievements'); e.preventDefault(); break;
+        case '3': navigate('knowledge'); e.preventDefault(); break;
+        case '4': navigate('review'); e.preventDefault(); break;
+        case '5': navigate('stats'); e.preventDefault(); break;
+        case '6': navigate('shop'); e.preventDefault(); break;
+        case '7': navigate('achievements'); e.preventDefault(); break;
         case ',': navigate('settings'); e.preventDefault(); break;
       }
     }
   }
 
   onMount(() => {
-    // Load initial dashboard data
-    dashboard.refresh();
+    try {
+      dashboard.refresh();
+    } catch (err) {
+      console.error('Dashboard refresh error:', err);
+    }
   });
 </script>
 

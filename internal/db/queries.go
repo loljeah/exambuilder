@@ -3,6 +3,7 @@ package db
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"path/filepath"
 	"time"
 )
@@ -53,6 +54,45 @@ func (d *DB) GetProject(id string) (*Project, error) {
 	p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
 	p.LastActive, _ = time.Parse("2006-01-02 15:04:05", lastActive)
 	return p, nil
+}
+
+// DeleteProject removes a project and all related data
+func (d *DB) DeleteProject(projectID string) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete in order to respect foreign keys
+	tables := []string{
+		"DELETE FROM domain_achievements WHERE project_id = ?",
+		"DELETE FROM domain_levels WHERE project_id = ?",
+		"DELETE FROM domains WHERE project_id = ?",
+		"DELETE FROM attempts WHERE sprint_id IN (SELECT id FROM sprints WHERE project_id = ?)",
+		"DELETE FROM question_stats WHERE sprint_id IN (SELECT id FROM sprints WHERE project_id = ?)",
+		"DELETE FROM study_notes WHERE sprint_id IN (SELECT id FROM sprints WHERE project_id = ?)",
+		"DELETE FROM study_notes WHERE knowledge_item_id IN (SELECT id FROM knowledge_items WHERE project_id = ?)",
+		"DELETE FROM study_notes WHERE project_id = ?",
+		"DELETE FROM journal WHERE sprint_id IN (SELECT id FROM sprints WHERE project_id = ?)",
+		"DELETE FROM journal WHERE project_id = ?",
+		"DELETE FROM knowledge_items WHERE project_id = ?",
+		"DELETE FROM sprints WHERE project_id = ?",
+		"DELETE FROM debt_log WHERE project_id = ?",
+		"DELETE FROM debt_current WHERE project_id = ?",
+		"DELETE FROM badges WHERE project_id = ?",
+		"DELETE FROM tagged_items WHERE item_type = 'project' AND item_id = ?",
+		"DELETE FROM projects WHERE id = ?",
+	}
+
+	for _, query := range tables {
+		if _, err := tx.Exec(query, projectID); err != nil {
+			// Ignore errors for tables that might not exist
+			continue
+		}
+	}
+
+	return tx.Commit()
 }
 
 // ListProjects returns all projects
@@ -229,8 +269,9 @@ func (d *DB) UpdateProfile(xpDelta, streakDelta int, sprintPassed bool) error {
 // GetSprints returns all sprints for a project
 func (d *DB) GetSprints(projectID string) ([]*Sprint, error) {
 	rows, err := d.Query(`
-		SELECT id, project_id, sprint_number, topic, questions_json, answer_key_json,
-		       status, best_score, attempts, xp_available, xp_earned, created_at, passed_at
+		SELECT id, project_id, sprint_number, topic, COALESCE(domain_id, ''), COALESCE(subdomain_id, ''),
+		       questions_json, answer_key_json, status, best_score, attempts,
+		       xp_available, xp_earned, created_at, passed_at
 		FROM sprints WHERE project_id = ? ORDER BY sprint_number
 	`, projectID)
 	if err != nil {
@@ -243,7 +284,7 @@ func (d *DB) GetSprints(projectID string) ([]*Sprint, error) {
 		s := &Sprint{}
 		var createdAt string
 		var passedAt *string
-		if err := rows.Scan(&s.ID, &s.ProjectID, &s.SprintNumber, &s.Topic,
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.SprintNumber, &s.Topic, &s.DomainID, &s.SubdomainID,
 			&s.QuestionsJSON, &s.AnswerKeyJSON, &s.Status, &s.BestScore,
 			&s.Attempts, &s.XPAvailable, &s.XPEarned, &createdAt, &passedAt); err != nil {
 			return nil, err
@@ -261,15 +302,16 @@ func (d *DB) GetSprints(projectID string) ([]*Sprint, error) {
 // GetSprint returns a specific sprint
 func (d *DB) GetSprint(projectID string, sprintNum int) (*Sprint, error) {
 	row := d.QueryRow(`
-		SELECT id, project_id, sprint_number, topic, questions_json, answer_key_json,
-		       status, best_score, attempts, xp_available, xp_earned, created_at, passed_at
+		SELECT id, project_id, sprint_number, topic, COALESCE(domain_id, ''), COALESCE(subdomain_id, ''),
+		       questions_json, answer_key_json, status, best_score, attempts,
+		       xp_available, xp_earned, created_at, passed_at
 		FROM sprints WHERE project_id = ? AND sprint_number = ?
 	`, projectID, sprintNum)
 
 	s := &Sprint{}
 	var createdAt string
 	var passedAt *string
-	err := row.Scan(&s.ID, &s.ProjectID, &s.SprintNumber, &s.Topic,
+	err := row.Scan(&s.ID, &s.ProjectID, &s.SprintNumber, &s.Topic, &s.DomainID, &s.SubdomainID,
 		&s.QuestionsJSON, &s.AnswerKeyJSON, &s.Status, &s.BestScore,
 		&s.Attempts, &s.XPAvailable, &s.XPEarned, &createdAt, &passedAt)
 	if err != nil {
@@ -286,14 +328,16 @@ func (d *DB) GetSprint(projectID string, sprintNum int) (*Sprint, error) {
 // UpsertSprint creates or updates a sprint
 func (d *DB) UpsertSprint(s *Sprint) error {
 	_, err := d.Exec(`
-		INSERT INTO sprints (project_id, sprint_number, topic, questions_json, answer_key_json, xp_available)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO sprints (project_id, sprint_number, topic, domain_id, subdomain_id, questions_json, answer_key_json, xp_available)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(project_id, sprint_number) DO UPDATE SET
 			topic = excluded.topic,
+			domain_id = excluded.domain_id,
+			subdomain_id = excluded.subdomain_id,
 			questions_json = excluded.questions_json,
 			answer_key_json = excluded.answer_key_json,
 			xp_available = excluded.xp_available
-	`, s.ProjectID, s.SprintNumber, s.Topic, s.QuestionsJSON, s.AnswerKeyJSON, s.XPAvailable)
+	`, s.ProjectID, s.SprintNumber, s.Topic, s.DomainID, s.SubdomainID, s.QuestionsJSON, s.AnswerKeyJSON, s.XPAvailable)
 	return err
 }
 
@@ -404,4 +448,373 @@ func (d *DB) RecordSprintAttempt(passed bool, correctCount, totalCount, xpEarned
 			WHERE date = ?
 		`, xpEarned, today)
 	}
+}
+
+// ============================================================================
+// SETTINGS
+// ============================================================================
+
+// GetSetting retrieves a setting by key
+func (d *DB) GetSetting(key string) (string, error) {
+	var value string
+	err := d.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
+	if err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+// SetSetting stores a setting
+func (d *DB) SetSetting(key, value string) error {
+	_, err := d.Exec(`
+		INSERT INTO settings (key, value, updated_at)
+		VALUES (?, ?, datetime('now'))
+		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
+	`, key, value, value)
+	return err
+}
+
+// GetSettingBool retrieves a boolean setting (stored as "true"/"false")
+func (d *DB) GetSettingBool(key string, defaultVal bool) bool {
+	val, err := d.GetSetting(key)
+	if err != nil {
+		return defaultVal
+	}
+	return val == "true" || val == "1"
+}
+
+// SetSettingBool stores a boolean setting
+func (d *DB) SetSettingBool(key string, value bool) error {
+	v := "false"
+	if value {
+		v = "true"
+	}
+	return d.SetSetting(key, v)
+}
+
+// ============================================================================
+// DOMAINS
+// ============================================================================
+
+// GetDomains returns all domains for a project
+func (d *DB) GetDomains(projectID string) ([]Domain, error) {
+	rows, err := d.Query(`
+		SELECT id, project_id, domain_id, name, description, color, icon,
+		       total_xp, earned_xp, level, sprints_total, sprints_passed, sprints_perfect,
+		       created_at, updated_at
+		FROM domains
+		WHERE project_id = ?
+		ORDER BY name
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var domains []Domain
+	for rows.Next() {
+		var dom Domain
+		err := rows.Scan(&dom.ID, &dom.ProjectID, &dom.DomainID, &dom.Name, &dom.Description,
+			&dom.Color, &dom.Icon, &dom.TotalXP, &dom.EarnedXP, &dom.Level,
+			&dom.SprintsTotal, &dom.SprintsPassed, &dom.SprintsPerfect,
+			&dom.CreatedAt, &dom.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		domains = append(domains, dom)
+	}
+	return domains, nil
+}
+
+// GetDomainLevels returns level definitions for a domain
+func (d *DB) GetDomainLevels(projectID, domainID string) ([]DomainLevel, error) {
+	rows, err := d.Query(`
+		SELECT id, project_id, domain_id, level, xp_threshold, title
+		FROM domain_levels
+		WHERE project_id = ? AND domain_id = ?
+		ORDER BY level
+	`, projectID, domainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var levels []DomainLevel
+	for rows.Next() {
+		var lvl DomainLevel
+		err := rows.Scan(&lvl.ID, &lvl.ProjectID, &lvl.DomainID, &lvl.Level, &lvl.XPThreshold, &lvl.Title)
+		if err != nil {
+			return nil, err
+		}
+		levels = append(levels, lvl)
+	}
+	return levels, nil
+}
+
+// GetDomainAchievements returns achievements for a domain
+func (d *DB) GetDomainAchievements(projectID, domainID string) ([]DomainAchievement, error) {
+	rows, err := d.Query(`
+		SELECT id, project_id, domain_id, name, description, condition, xp_reward, icon, unlocked, unlocked_at
+		FROM domain_achievements
+		WHERE project_id = ? AND domain_id = ?
+		ORDER BY xp_reward
+	`, projectID, domainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var achievements []DomainAchievement
+	for rows.Next() {
+		var ach DomainAchievement
+		err := rows.Scan(&ach.ID, &ach.ProjectID, &ach.DomainID, &ach.Name, &ach.Description,
+			&ach.Condition, &ach.XPReward, &ach.Icon, &ach.Unlocked, &ach.UnlockedAt)
+		if err != nil {
+			return nil, err
+		}
+		achievements = append(achievements, ach)
+	}
+	return achievements, nil
+}
+
+// UpsertDomain inserts or updates a domain
+func (d *DB) UpsertDomain(dom *Domain) error {
+	_, err := d.Exec(`
+		INSERT INTO domains (id, project_id, domain_id, name, description, color, icon, total_xp, sprints_total)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(project_id, domain_id) DO UPDATE SET
+			name = excluded.name,
+			description = excluded.description,
+			color = excluded.color,
+			icon = excluded.icon,
+			total_xp = excluded.total_xp,
+			sprints_total = excluded.sprints_total,
+			updated_at = datetime('now')
+	`, dom.ID, dom.ProjectID, dom.DomainID, dom.Name, dom.Description, dom.Color, dom.Icon, dom.TotalXP, dom.SprintsTotal)
+	return err
+}
+
+// UpsertDomainLevel inserts or updates a domain level
+func (d *DB) UpsertDomainLevel(lvl *DomainLevel) error {
+	_, err := d.Exec(`
+		INSERT INTO domain_levels (project_id, domain_id, level, xp_threshold, title)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(project_id, domain_id, level) DO UPDATE SET
+			xp_threshold = excluded.xp_threshold,
+			title = excluded.title
+	`, lvl.ProjectID, lvl.DomainID, lvl.Level, lvl.XPThreshold, lvl.Title)
+	return err
+}
+
+// UpsertDomainAchievement inserts or updates a domain achievement
+func (d *DB) UpsertDomainAchievement(ach *DomainAchievement) error {
+	_, err := d.Exec(`
+		INSERT INTO domain_achievements (id, project_id, domain_id, name, description, condition, xp_reward, icon)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(project_id, domain_id, name) DO UPDATE SET
+			description = excluded.description,
+			condition = excluded.condition,
+			xp_reward = excluded.xp_reward,
+			icon = excluded.icon
+	`, ach.ID, ach.ProjectID, ach.DomainID, ach.Name, ach.Description, ach.Condition, ach.XPReward, ach.Icon)
+	return err
+}
+
+// AddDomainXP adds XP to a domain and updates level, returns level-up info
+func (d *DB) AddDomainXP(projectID, domainID string, xp int) (*LevelUpResult, error) {
+	// Get old level
+	var oldLevel int
+	d.QueryRow(`SELECT level FROM domains WHERE project_id = ? AND domain_id = ?`, projectID, domainID).Scan(&oldLevel)
+
+	// Add XP
+	_, err := d.Exec(`
+		UPDATE domains SET
+			earned_xp = earned_xp + ?,
+			updated_at = datetime('now')
+		WHERE project_id = ? AND domain_id = ?
+	`, xp, projectID, domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get current XP and calculate new level
+	var earnedXP int
+	err = d.QueryRow(`SELECT earned_xp FROM domains WHERE project_id = ? AND domain_id = ?`, projectID, domainID).Scan(&earnedXP)
+	if err != nil {
+		return nil, err
+	}
+
+	// Find highest level achieved (no max level - infinite scaling)
+	var newLevel int
+	err = d.QueryRow(`
+		SELECT COALESCE(MAX(level), 1)
+		FROM domain_levels
+		WHERE project_id = ? AND domain_id = ? AND xp_threshold <= ?
+	`, projectID, domainID, earnedXP).Scan(&newLevel)
+	if err != nil {
+		newLevel = 1
+	}
+
+	// Update level
+	_, err = d.Exec(`UPDATE domains SET level = ? WHERE project_id = ? AND domain_id = ?`, newLevel, projectID, domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get level title
+	newTitle := "Novice"
+	d.QueryRow(`SELECT title FROM domain_levels WHERE project_id = ? AND domain_id = ? AND level = ?`,
+		projectID, domainID, newLevel).Scan(&newTitle)
+
+	return &LevelUpResult{
+		OldLevel:  oldLevel,
+		NewLevel:  newLevel,
+		LeveledUp: newLevel > oldLevel,
+		NewTitle:  newTitle,
+	}, nil
+}
+
+// RecordDomainSprintComplete updates domain stats after sprint completion
+func (d *DB) RecordDomainSprintComplete(projectID, domainID string, passed bool, perfect bool) error {
+	if passed {
+		_, err := d.Exec(`
+			UPDATE domains SET
+				sprints_passed = sprints_passed + 1,
+				updated_at = datetime('now')
+			WHERE project_id = ? AND domain_id = ?
+		`, projectID, domainID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if perfect {
+		_, err := d.Exec(`
+			UPDATE domains SET
+				sprints_perfect = sprints_perfect + 1
+			WHERE project_id = ? AND domain_id = ?
+		`, projectID, domainID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// GetDomainByID returns a single domain
+func (d *DB) GetDomainByID(projectID, domainID string) (*Domain, error) {
+	row := d.QueryRow(`
+		SELECT id, project_id, domain_id, name, description, color, icon,
+		       total_xp, earned_xp, level, sprints_total, sprints_passed, sprints_perfect,
+		       created_at, updated_at
+		FROM domains
+		WHERE project_id = ? AND domain_id = ?
+	`, projectID, domainID)
+
+	var dom Domain
+	err := row.Scan(&dom.ID, &dom.ProjectID, &dom.DomainID, &dom.Name, &dom.Description,
+		&dom.Color, &dom.Icon, &dom.TotalXP, &dom.EarnedXP, &dom.Level,
+		&dom.SprintsTotal, &dom.SprintsPassed, &dom.SprintsPerfect,
+		&dom.CreatedAt, &dom.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &dom, nil
+}
+
+// EvaluateAchievements checks and unlocks achievements for a domain
+func (d *DB) EvaluateAchievements(projectID, domainID string) ([]DomainAchievement, error) {
+	// Get domain stats
+	domain, err := d.GetDomainByID(projectID, domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get all locked achievements for this domain
+	achievements, err := d.GetDomainAchievements(projectID, domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	var unlocked []DomainAchievement
+	for _, ach := range achievements {
+		if ach.Unlocked {
+			continue
+		}
+
+		// Parse and evaluate condition
+		if evaluateCondition(ach.Condition, domain) {
+			// Unlock achievement
+			if err := d.UnlockAchievement(ach.ID); err == nil {
+				ach.Unlocked = true
+				unlocked = append(unlocked, ach)
+			}
+		}
+	}
+	return unlocked, nil
+}
+
+// UnlockAchievement marks an achievement as unlocked
+func (d *DB) UnlockAchievement(achievementID string) error {
+	_, err := d.Exec(`
+		UPDATE domain_achievements
+		SET unlocked = 1, unlocked_at = datetime('now')
+		WHERE id = ?
+	`, achievementID)
+	return err
+}
+
+// evaluateCondition checks if a domain meets achievement conditions
+// Supports conditions like: "domain_sprints_passed >= 1", "domain_level >= 3", "all_sprints_passed"
+func evaluateCondition(condition string, domain *Domain) bool {
+	// Parse simple conditions
+	switch {
+	case condition == "all_sprints_passed":
+		return domain.SprintsPassed >= domain.SprintsTotal && domain.SprintsTotal > 0
+	case condition == "first_sprint_passed":
+		return domain.SprintsPassed >= 1
+	case condition == "perfect_sprint":
+		return domain.SprintsPerfect >= 1
+	case condition == "all_sprints_perfect":
+		return domain.SprintsPerfect >= domain.SprintsTotal && domain.SprintsTotal > 0
+	}
+
+	// Parse numeric conditions like "domain_sprints_passed >= 1"
+	var field string
+	var op string
+	var value int
+	_, err := fmt.Sscanf(condition, "%s %s %d", &field, &op, &value)
+	if err != nil {
+		return false
+	}
+
+	var fieldValue int
+	switch field {
+	case "domain_sprints_passed":
+		fieldValue = domain.SprintsPassed
+	case "domain_sprints_perfect":
+		fieldValue = domain.SprintsPerfect
+	case "domain_level":
+		fieldValue = domain.Level
+	case "domain_xp", "earned_xp":
+		fieldValue = domain.EarnedXP
+	default:
+		return false
+	}
+
+	switch op {
+	case ">=":
+		return fieldValue >= value
+	case ">":
+		return fieldValue > value
+	case "==", "=":
+		return fieldValue == value
+	case "<=":
+		return fieldValue <= value
+	case "<":
+		return fieldValue < value
+	}
+
+	return false
 }
