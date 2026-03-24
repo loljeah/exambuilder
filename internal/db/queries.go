@@ -514,13 +514,16 @@ func (d *DB) GetDomains(projectID string) ([]Domain, error) {
 	var domains []Domain
 	for rows.Next() {
 		var dom Domain
+		var createdAt, updatedAt string
 		err := rows.Scan(&dom.ID, &dom.ProjectID, &dom.DomainID, &dom.Name, &dom.Description,
 			&dom.Color, &dom.Icon, &dom.TotalXP, &dom.EarnedXP, &dom.Level,
 			&dom.SprintsTotal, &dom.SprintsPassed, &dom.SprintsPerfect,
-			&dom.CreatedAt, &dom.UpdatedAt)
+			&createdAt, &updatedAt)
 		if err != nil {
 			return nil, err
 		}
+		dom.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+		dom.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 		domains = append(domains, dom)
 	}
 	return domains, nil
@@ -622,9 +625,9 @@ func (d *DB) UpsertDomainAchievement(ach *DomainAchievement) error {
 
 // AddDomainXP adds XP to a domain and updates level, returns level-up info
 func (d *DB) AddDomainXP(projectID, domainID string, xp int) (*LevelUpResult, error) {
-	// Get old level
-	var oldLevel int
-	d.QueryRow(`SELECT level FROM domains WHERE project_id = ? AND domain_id = ?`, projectID, domainID).Scan(&oldLevel)
+	// Get old level (default to 1 if not found)
+	var oldLevel int = 1
+	_ = d.QueryRow(`SELECT level FROM domains WHERE project_id = ? AND domain_id = ?`, projectID, domainID).Scan(&oldLevel)
 
 	// Add XP
 	_, err := d.Exec(`
@@ -713,13 +716,16 @@ func (d *DB) GetDomainByID(projectID, domainID string) (*Domain, error) {
 	`, projectID, domainID)
 
 	var dom Domain
+	var createdAt, updatedAt string
 	err := row.Scan(&dom.ID, &dom.ProjectID, &dom.DomainID, &dom.Name, &dom.Description,
 		&dom.Color, &dom.Icon, &dom.TotalXP, &dom.EarnedXP, &dom.Level,
 		&dom.SprintsTotal, &dom.SprintsPassed, &dom.SprintsPerfect,
-		&dom.CreatedAt, &dom.UpdatedAt)
+		&createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
 	}
+	dom.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	dom.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &dom, nil
 }
 
