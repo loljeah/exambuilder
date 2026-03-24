@@ -37,7 +37,7 @@
   let isSpeaking = false;
   let typewriterText = '';
   let typewriterInterval = null;
-  let fullQuestionText = '';
+  let displayQuestionText = ''; // Just the question text for display
 
   // Results state
   let result = null;
@@ -102,7 +102,7 @@
     hints = [];
     explanations = [];
     typewriterText = '';
-    fullQuestionText = '';
+    displayQuestionText = '';
 
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => timeElapsed++, 1000);
@@ -113,44 +113,36 @@
     await speakCurrentQuestion();
   }
 
-  async function speakCurrentQuestion() {
-    // Stop any current speech
+  function stopSpeechAndTypewriter() {
     stopTypewriter();
     if (isSpeaking && window.go?.main?.App?.StopSpeech) {
       window.go.main.App.StopSpeech().catch(() => {});
     }
     isSpeaking = false;
+  }
+
+  async function speakCurrentQuestion() {
+    // Stop any current speech
+    stopSpeechAndTypewriter();
     typewriterText = '';
+    displayQuestionText = '';
 
-    if (!selectedSprint || currentQuestionIndex < 0) return;
+    if (!selectedSprint || currentQuestionIndex < 0 || !currentQuestion) return;
 
-    try {
-      // Get the speech text for typewriter sync
-      if (window.go?.main?.App?.GetQuestionSpeechText) {
-        fullQuestionText = await withTimeout(
-          window.go.main.App.GetQuestionSpeechText(selectedSprint.sprint_number, currentQuestionIndex),
-          3000
-        ) || '';
-      }
+    // Set the display text to just the question
+    displayQuestionText = currentQuestion.text;
 
-      // Start typewriter effect
-      if (fullQuestionText) {
-        startTypewriter(fullQuestionText);
-      }
+    // Start typewriter effect for just the question text
+    startTypewriter(displayQuestionText);
 
-      // Start TTS if piper is available
-      if (piperAvailable && window.go?.main?.App?.SpeakQuestion) {
-        console.log('Speaking question:', selectedSprint.sprint_number, currentQuestionIndex);
-        isSpeaking = true;
-        window.go.main.App.SpeakQuestion(selectedSprint.sprint_number, currentQuestionIndex)
-          .then(() => console.log('SpeakQuestion completed'))
-          .catch(err => console.error('SpeakQuestion error:', err))
-          .finally(() => { isSpeaking = false; });
-      } else {
-        console.log('Piper not available or SpeakQuestion missing:', piperAvailable, !!window.go?.main?.App?.SpeakQuestion);
-      }
-    } catch (err) {
-      console.warn('speakCurrentQuestion error:', err);
+    // Start TTS if piper is available
+    if (piperAvailable && window.go?.main?.App?.SpeakQuestion) {
+      console.log('Speaking question:', selectedSprint.sprint_number, currentQuestionIndex);
+      isSpeaking = true;
+      window.go.main.App.SpeakQuestion(selectedSprint.sprint_number, currentQuestionIndex)
+        .then(() => console.log('SpeakQuestion completed'))
+        .catch(err => console.error('SpeakQuestion error:', err))
+        .finally(() => { isSpeaking = false; });
     }
   }
 
@@ -158,7 +150,7 @@
     stopTypewriter();
     typewriterText = '';
     let index = 0;
-    const speed = 30; // ms per character
+    const speed = 25; // ms per character
 
     typewriterInterval = setInterval(() => {
       if (index < text.length) {
@@ -175,13 +167,16 @@
       clearInterval(typewriterInterval);
       typewriterInterval = null;
     }
-    // Show full text when stopped
-    if (fullQuestionText) {
-      typewriterText = fullQuestionText;
+    // Show full question text when stopped
+    if (displayQuestionText) {
+      typewriterText = displayQuestionText;
     }
   }
 
   function selectAnswerOption(optionIndex) {
+    // Stop speech when selecting answer
+    stopSpeechAndTypewriter();
+
     const letter = String.fromCharCode(65 + optionIndex);
     const q = questions[currentQuestionIndex];
 
@@ -275,11 +270,7 @@
       clearInterval(timerInterval);
       timerInterval = null;
     }
-    stopTypewriter();
-    if (isSpeaking && window.go?.main?.App?.StopSpeech) {
-      window.go.main.App.StopSpeech().catch(() => {});
-    }
-    isSpeaking = false;
+    stopSpeechAndTypewriter();
     view = 'select';
     result = null;
   }
@@ -307,10 +298,7 @@
 
   onDestroy(() => {
     if (timerInterval) clearInterval(timerInterval);
-    stopTypewriter();
-    if (isSpeaking && window.go?.main?.App?.StopSpeech) {
-      window.go.main.App.StopSpeech().catch(() => {});
-    }
+    stopSpeechAndTypewriter();
   });
 </script>
 
@@ -341,19 +329,20 @@
         <Card title="Select Sprint" subtitle={selectedProject.name}>
           <div class="sprint-list">
             {#each sprints as sprint}
+              {@const isCompleted = sprint.status === 'passed' || sprint.status === 'completed'}
               <button
                 class="sprint-item"
-                class:passed={sprint.status === 'passed'}
+                class:completed={isCompleted}
                 on:click={() => startExam(sprint)}
               >
                 <div class="sprint-status">
-                  {#if sprint.status === 'passed'}✓{:else}○{/if}
+                  {#if isCompleted}✓{:else}○{/if}
                 </div>
                 <div class="sprint-info">
                   <h4>Sprint {sprint.sprint_number}: {sprint.topic}</h4>
                   <p>
-                    {#if sprint.status === 'passed'}
-                      Best: {sprint.best_score}% • {sprint.attempts} attempts
+                    {#if isCompleted}
+                      Completed • Best: {sprint.best_score}% • {sprint.attempts} attempts
                     {:else if sprint.attempts > 0}
                       Best: {sprint.best_score}% • {sprint.attempts} attempts
                     {:else}
@@ -362,14 +351,14 @@
                   </p>
                 </div>
                 <div class="sprint-xp">
-                  {#if sprint.status === 'passed'}
+                  {#if isCompleted}
                     <span class="earned">✓ {sprint.xp_earned} XP</span>
                   {:else}
                     <span>⭐ {sprint.xp_available} XP</span>
                   {/if}
                 </div>
                 <span class="sprint-action">
-                  {sprint.status === 'passed' ? 'Retake' : 'Start'} →
+                  {isCompleted ? 'Retake' : 'Start'} →
                 </span>
               </button>
             {:else}
@@ -415,15 +404,15 @@
           <div class="question-box">
             <div class="question-label">Question</div>
             <div class="question-text">
-              {#if typewriterText}
+              {#if typewriterText && typewriterText !== displayQuestionText}
                 <p class="typewriter">{typewriterText}</p>
               {:else}
                 <p>{currentQuestion.text}</p>
               {/if}
-              {#if currentQuestion.code}
-                <pre class="code-block"><code>{currentQuestion.code}</code></pre>
-              {/if}
             </div>
+            {#if currentQuestion.code}
+              <pre class="code-block"><code>{currentQuestion.code}</code></pre>
+            {/if}
           </div>
         </Card>
 
@@ -699,7 +688,7 @@
     border-radius: 50%;
   }
 
-  .sprint-item.passed .sprint-status {
+  .sprint-item.completed .sprint-status {
     background: var(--accent-green);
     color: white;
   }
