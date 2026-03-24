@@ -16,7 +16,7 @@
           pname = "kgate";
           version = "0.2.0";
           src = ./.;
-          vendorHash = null; # Update after go mod tidy
+          vendorHash = "sha256-fjKOOluDPxtghcfPHDsHfoNhtRuc7nQChZBnYPjRbBU=";
 
           nativeBuildInputs = with pkgs; [
             pkg-config
@@ -55,6 +55,7 @@
             nodejs_20
             nodePackages.npm
             webkitgtk_4_1
+            libsoup_3
 
             # Pixel art
             python3
