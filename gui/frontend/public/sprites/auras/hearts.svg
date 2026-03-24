@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+    <filter id="glow"><feGaussianBlur stdDeviation="1"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g filter="url(#glow)">
+      <path d="M12,20 Q12,16 14,16 Q16,16 16,18 Q16,16 18,16 Q20,16 20,20 Q20,24 16,26 Q12,24 12,20 Z" fill="#f472b6"><animate attributeName="opacity" values="0;1;0" dur="2s" begin="0s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0,0;0,-8" dur="2s" begin="0s" repeatCount="indefinite"/></path>
+      <path d="M48,16 Q48,12 50,12 Q52,12 52,14 Q52,12 54,12 Q56,12 56,16 Q56,20 52,22 Q48,20 48,16 Z" fill="#f472b6"><animate attributeName="opacity" values="0;1;0" dur="2s" begin="0.5s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0,0;0,-10" dur="2s" begin="0.5s" repeatCount="indefinite"/></path>
+      <path d="M6,44 Q6,40 8,40 Q10,40 10,42 Q10,40 12,40 Q14,40 14,44 Q14,48 10,50 Q6,48 6,44 Z" fill="#f472b6"><animate attributeName="opacity" values="0;1;0" dur="2s" begin="1s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0,0;0,-6" dur="2s" begin="1s" repeatCount="indefinite"/></path>
+      <path d="M50,52 Q50,48 52,48 Q54,48 54,50 Q54,48 56,48 Q58,48 58,52 Q58,56 54,58 Q50,56 50,52 Z" fill="#f472b6"><animate attributeName="opacity" values="0;1;0" dur="2s" begin="1.5s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="translate" values="0,0;0,-8" dur="2s" begin="1.5s" repeatCount="indefinite"/></path>
+    </g>
+</svg>

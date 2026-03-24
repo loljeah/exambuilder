@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="santa" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#ef4444"/><stop offset="100%" stop-color="#b91c1c"/></linearGradient></defs>
+    <path d="M12,52 Q12,24 32,8 Q56,20 52,52 Z" fill="url(#santa)"/>
+    <ellipse cx="32" cy="52" rx="22" ry="6" fill="white"/>
+    <circle cx="52" cy="12" r="8" fill="white"/>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="heart" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fca5a5"/><stop offset="100%" stop-color="#dc2626"/></linearGradient>
+    <filter id="pulse"><feGaussianBlur stdDeviation="1"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <path d="M32,56 Q8,36 8,20 Q8,8 20,8 Q28,8 32,16 Q36,8 44,8 Q56,8 56,20 Q56,36 32,56 Z" fill="url(#heart)" filter="url(#pulse)">
+    <animate attributeName="transform" type="scale" values="1;1.05;1" dur="0.8s" repeatCount="indefinite" additive="sum"/></path>
+    <ellipse cx="20" cy="18" rx="4" ry="3" fill="white" opacity="0.4"/>
+</svg>

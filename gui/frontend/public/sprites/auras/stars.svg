@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+    <filter id="glow"><feGaussianBlur stdDeviation="1.5"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g filter="url(#glow)">
+      <polygon points="10,18 12,14 14,18 10,16 14,16" fill="#a78bfa"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" begin="0s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 12 16;180 12 16;360 12 16" dur="3s" repeatCount="indefinite"/></polygon>
+      <polygon points="50,12 52,8 54,12 50,10 54,10" fill="#a78bfa"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" begin="0.3s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 52 10;180 52 10;360 52 10" dur="3s" repeatCount="indefinite"/></polygon>
+      <polygon points="6,48 8,44 10,48 6,46 10,46" fill="#c4b5fd"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" begin="0.6s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 8 46;180 8 46;360 8 46" dur="3s" repeatCount="indefinite"/></polygon>
+      <polygon points="54,54 56,50 58,54 54,52 58,52" fill="#c4b5fd"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" begin="0.9s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 56 52;180 56 52;360 56 52" dur="3s" repeatCount="indefinite"/></polygon>
+      <polygon points="30,6 32,2 34,6 30,4 34,4" fill="#a78bfa"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" begin="0.5s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 32 4;180 32 4;360 32 4" dur="3s" repeatCount="indefinite"/></polygon>
+    </g>
+</svg>

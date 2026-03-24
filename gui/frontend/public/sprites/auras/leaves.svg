@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+    <linearGradient id="leaf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#86efac"/><stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    </defs>
+    <g>
+      <path d="M8,8 Q12,4 16,8 Q12,12 8,8 Z" fill="url(#leaf)"><animateMotion path="M0,0 C10,20 -5,40 10,56" dur="4s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0;360" dur="4s" repeatCount="indefinite"/></path>
+      <path d="M48,4 Q52,0 56,4 Q52,8 48,4 Z" fill="url(#leaf)"><animateMotion path="M0,0 C-8,24 8,36 -4,60" dur="5s" begin="1s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0;-360" dur="5s" begin="1s" repeatCount="indefinite"/></path>
+      <path d="M28,2 Q32,-2 36,2 Q32,6 28,2 Z" fill="url(#leaf)"><animateMotion path="M0,0 C12,16 -8,32 6,62" dur="4.5s" begin="2s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0;360" dur="4.5s" begin="2s" repeatCount="indefinite"/></path>
+    </g>
+</svg>

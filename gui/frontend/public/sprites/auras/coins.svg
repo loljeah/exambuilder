@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+    <linearGradient id="coin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="1"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g filter="url(#glow)">
+      <ellipse cx="12" cy="48" rx="6" ry="4" fill="url(#coin)"><animate attributeName="cy" values="48;8" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="2s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 12 48;360 12 8" dur="2s" repeatCount="indefinite"/></ellipse>
+      <ellipse cx="32" cy="52" rx="6" ry="4" fill="url(#coin)"><animate attributeName="cy" values="52;4" dur="2.5s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="2.5s" begin="0.5s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 32 52;360 32 4" dur="2.5s" begin="0.5s" repeatCount="indefinite"/></ellipse>
+      <ellipse cx="52" cy="50" rx="6" ry="4" fill="url(#coin)"><animate attributeName="cy" values="50;6" dur="2.2s" begin="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="2.2s" begin="1s" repeatCount="indefinite"/><animateTransform attributeName="transform" type="rotate" values="0 52 50;360 52 6" dur="2.2s" begin="1s" repeatCount="indefinite"/></ellipse>
+    </g>
+</svg>

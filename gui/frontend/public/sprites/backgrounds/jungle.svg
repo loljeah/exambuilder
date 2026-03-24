@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="jun" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#166534"/><stop offset="100%" stop-color="#14532d"/></linearGradient></defs>
+    <rect width="64" height="64" fill="url(#jun)"/>
+    <ellipse cx="8" cy="32" rx="12" ry="32" fill="#22c55e" opacity="0.8"/>
+    <ellipse cx="56" cy="36" rx="14" ry="28" fill="#16a34a" opacity="0.8"/>
+    <ellipse cx="32" cy="40" rx="20" ry="24" fill="#15803d" opacity="0.7"/>
+    <path d="M20,64 Q28,48 32,64" fill="#84cc16"/>
+    <path d="M40,64 Q48,44 52,64" fill="#65a30d"/>
+</svg>

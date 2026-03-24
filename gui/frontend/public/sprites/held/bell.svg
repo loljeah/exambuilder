@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="bell" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#b45309"/></linearGradient></defs>
+    <path d="M32,8 Q16,8 16,32 L16,48 L48,48 L48,32 Q48,8 32,8 Z" fill="url(#bell)"/>
+    <rect x="12" y="48" width="40" height="4" rx="1" fill="#92400e"/>
+    <circle cx="32" cy="56" r="4" fill="#92400e"/>
+    <rect x="30" y="4" width="4" height="8" rx="1" fill="#78350f"/>
+    <ellipse cx="24" cy="24" rx="4" ry="6" fill="white" opacity="0.3"/>
+</svg>

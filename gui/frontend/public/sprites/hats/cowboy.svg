@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="cow" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#a16207"/><stop offset="100%" stop-color="#713f12"/></linearGradient></defs>
+    <ellipse cx="32" cy="48" rx="30" ry="8" fill="url(#cow)"/>
+    <path d="M14,48 Q14,24 32,20 Q50,24 50,48 Z" fill="#92400e"/>
+    <rect x="20" y="38" width="24" height="4" fill="#78350f"/>
+</svg>

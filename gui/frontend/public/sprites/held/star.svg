@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="star" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fef08a"/><stop offset="100%" stop-color="#fbbf24"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="2"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <polygon points="32,4 38,24 60,24 42,38 50,58 32,46 14,58 22,38 4,24 26,24" fill="url(#star)" filter="url(#glow)"/>
+    <polygon points="32,12 36,24 48,24 38,32 42,44 32,36 22,44 26,32 16,24 28,24" fill="#fef3c7" opacity="0.4"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="msky" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#93c5fd"/></linearGradient></defs>
+    <rect width="64" height="64" fill="url(#msky)"/>
+    <polygon points="0,64 24,20 48,64" fill="#6b7280"/><polygon points="24,20 32,28 40,20" fill="white"/>
+    <polygon points="32,64 48,32 64,64" fill="#9ca3af"/><polygon points="48,32 52,36 56,32" fill="white"/>
+</svg>

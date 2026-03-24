@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="tele" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#92400e"/><stop offset="100%" stop-color="#713f12"/></linearGradient></defs>
+    <rect x="8" y="28" width="20" height="12" rx="2" fill="#fcd34d"/>
+    <rect x="26" y="26" width="24" height="16" rx="2" fill="url(#tele)"/>
+    <rect x="48" y="24" width="12" height="20" rx="2" fill="#78350f"/>
+    <ellipse cx="56" cy="34" rx="4" ry="8" fill="#bfdbfe" opacity="0.4"/>
+</svg>

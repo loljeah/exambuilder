@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="arc" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#e0f2fe"/><stop offset="100%" stop-color="#bae6fd"/></linearGradient></defs>
+    <rect width="64" height="64" fill="url(#arc)"/>
+    <polygon points="0,40 20,32 40,44 64,36 64,64 0,64" fill="white"/>
+    <polygon points="8,48 16,40 24,48" fill="#e0f2fe"/>
+    <polygon points="40,52 52,44 60,54" fill="#e0f2fe"/>
+</svg>

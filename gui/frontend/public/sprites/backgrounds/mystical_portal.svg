@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><radialGradient id="port">
+    <stop offset="0%" stop-color="#fef08a"/><stop offset="50%" stop-color="#8b5cf6"/>
+    <stop offset="100%" stop-color="#1e1b4b"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <rect width="64" height="64" fill="#1e1b4b"/>
+    <ellipse cx="32" cy="32" rx="20" ry="24" fill="url(#port)" filter="url(#glow)"/>
+    <ellipse cx="32" cy="32" rx="12" ry="16" fill="#c4b5fd" opacity="0.3"/>
+</svg>

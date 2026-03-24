@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<style>
+@keyframes breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.03)}}
+.body{animation:breathe 2s ease-in-out infinite;transform-origin:center bottom}
+</style>
+<defs>
+  <linearGradient id="octoBody" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fbcfe8"/>
+    <stop offset="100%" stop-color="#db2777"/>
+  </linearGradient>
+</defs>
+<g class="body">
+  <!-- Tentacles -->
+  <g fill="#f472b6">
+    <path d="M8,40 Q4,52 8,60 Q12,56 10,44 Z"/>
+    <path d="M16,44 Q10,56 16,62 Q20,56 18,48 Z"/>
+    <path d="M24,46 Q20,58 26,62 Q30,56 26,50 Z"/>
+    <path d="M40,46 Q36,58 42,62 Q46,56 42,50 Z" transform="scale(-1,1) translate(-64,0)"/>
+    <path d="M48,44 Q42,56 48,62 Q52,56 50,48 Z" transform="scale(-1,1) translate(-64,0)"/>
+    <path d="M56,40 Q52,52 56,60 Q60,56 58,44 Z" transform="scale(-1,1) translate(-64,0)"/>
+  </g>
+  <!-- Head -->
+  <ellipse cx="32" cy="28" rx="24" ry="22" fill="url(#octoBody)"/>
+  <!-- Spots -->
+  <circle cx="14" cy="30" r="3" fill="#fbcfe8" opacity="0.5"/>
+  <circle cx="50" cy="30" r="3" fill="#fbcfe8" opacity="0.5"/>
+  <circle cx="32" cy="44" r="2" fill="#fbcfe8" opacity="0.5"/>
+  <!-- Eyes -->
+  <ellipse cx="22" cy="24" rx="4" ry="4" fill="#1e1b4b"/><ellipse cx="42" cy="24" rx="4" ry="4" fill="#1e1b4b"/><circle cx="23" cy="23" r="1.5" fill="white"/><circle cx="43" cy="23" r="1.5" fill="white"/>
+  <!-- Mouth -->
+  <ellipse cx="32" cy="34" rx="2" ry="1.5" fill="#1e1b4b"/>
+</g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="parch" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fef3c7"/><stop offset="100%" stop-color="#fde68a"/></linearGradient></defs>
+    <rect x="12" y="16" width="40" height="36" fill="url(#parch)"/>
+    <ellipse cx="12" cy="34" rx="4" ry="18" fill="#fcd34d"/>
+    <ellipse cx="52" cy="34" rx="4" ry="18" fill="#fcd34d"/>
+    <line x1="20" y1="24" x2="44" y2="24" stroke="#9ca3af" stroke-width="2"/>
+    <line x1="20" y1="32" x2="44" y2="32" stroke="#9ca3af" stroke-width="2"/>
+    <line x1="20" y1="40" x2="36" y2="40" stroke="#9ca3af" stroke-width="2"/>
+</svg>

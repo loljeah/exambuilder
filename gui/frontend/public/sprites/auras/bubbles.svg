@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+    <radialGradient id="bub" cx="30%" cy="30%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0.2"/>
+    </radialGradient>
+    </defs>
+    <circle cx="12" cy="48" r="4" fill="url(#bub)" stroke="#93c5fd" stroke-width="0.5"><animate attributeName="cy" values="48;8" dur="3s" repeatCount="indefinite"/><animate attributeName="r" values="4;6;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.8;0" dur="3s" repeatCount="indefinite"/></circle>
+    <circle cx="28" cy="56" r="3" fill="url(#bub)" stroke="#93c5fd" stroke-width="0.5"><animate attributeName="cy" values="56;12" dur="3.5s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.8;0" dur="3.5s" begin="0.5s" repeatCount="indefinite"/></circle>
+    <circle cx="44" cy="52" r="5" fill="url(#bub)" stroke="#93c5fd" stroke-width="0.5"><animate attributeName="cy" values="52;4" dur="4s" begin="1s" repeatCount="indefinite"/><animate attributeName="r" values="5;7;5" dur="4s" begin="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.8;0" dur="4s" begin="1s" repeatCount="indefinite"/></circle>
+    <circle cx="52" cy="58" r="2" fill="url(#bub)" stroke="#93c5fd" stroke-width="0.5"><animate attributeName="cy" values="58;16" dur="2.5s" begin="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.8;0" dur="2.5s" begin="1.5s" repeatCount="indefinite"/></circle>
+</svg>

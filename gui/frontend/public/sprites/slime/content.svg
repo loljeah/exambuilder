@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<style>
+@keyframes breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.03)}}
+.body{animation:breathe 2s ease-in-out infinite;transform-origin:center bottom}
+</style>
+<defs>
+  <linearGradient id="slimeBody" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#c4b5fd"/>
+    <stop offset="100%" stop-color="#7c3aed"/>
+  </linearGradient>
+  <filter id="slimeGlow" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+    <feOffset dx="0" dy="0"/>
+    <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1"/>
+    <feColorMatrix values="0 0 0 0 0.7  0 0 0 0 0.4  0 0 0 0 1  0 0 0 0.5 0"/>
+    <feBlend in2="SourceGraphic"/>
+  </filter>
+</defs>
+<g class="body" filter="url(#slimeGlow)">
+  <!-- Body blob -->
+  <path d="M8,52 Q8,20 32,16 Q56,20 56,52 Q44,56 32,54 Q20,56 8,52 Z" fill="url(#slimeBody)"/>
+  <!-- Highlight -->
+  <ellipse cx="22" cy="24" rx="6" ry="4" fill="white" opacity="0.3"/>
+  <!-- Eyes -->
+  <ellipse cx="24" cy="26" rx="4" ry="5" fill="#1e1b4b"/><ellipse cx="40" cy="26" rx="4" ry="5" fill="#1e1b4b"/><ellipse cx="25" cy="24" r="2" fill="white"/><ellipse cx="41" cy="24" r="2" fill="white"/>
+  <!-- Mouth -->
+  <path d="M28,38 Q32,42 36,38" stroke="#1e1b4b" fill="none" stroke-width="2" stroke-linecap="round"/>
+</g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="comp" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#b45309"/></linearGradient></defs>
+    <circle cx="32" cy="32" r="26" fill="url(#comp)" stroke="#92400e" stroke-width="2"/>
+    <circle cx="32" cy="32" r="20" fill="#fef3c7"/>
+    <polygon points="32,14 36,32 32,36 28,32" fill="#ef4444"/>
+    <polygon points="32,50 36,32 32,28 28,32" fill="#1f2937"/>
+    <circle cx="32" cy="32" r="3" fill="#92400e"/>
+    <text x="32" y="18" text-anchor="middle" font-size="6" fill="#374151">N</text>
+</svg>

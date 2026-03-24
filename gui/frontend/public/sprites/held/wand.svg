@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="wand" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#1f2937"/><stop offset="100%" stop-color="#030712"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="2"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <rect x="28" y="16" width="8" height="44" rx="2" fill="url(#wand)"/>
+    <rect x="26" y="52" width="12" height="6" rx="1" fill="#92400e"/>
+    <circle cx="32" cy="10" r="6" fill="#fbbf24" filter="url(#glow)">
+    <animate attributeName="r" values="6;8;6" dur="1.5s" repeatCount="indefinite"/></circle>
+</svg>

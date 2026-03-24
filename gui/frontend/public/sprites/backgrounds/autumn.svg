@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="aut" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fed7aa"/><stop offset="100%" stop-color="#fdba74"/></linearGradient></defs>
+    <rect width="64" height="64" fill="url(#aut)"/>
+    <ellipse cx="32" cy="72" rx="48" ry="20" fill="#92400e"/>
+    <polygon points="8,64 20,28 32,64" fill="#ea580c"/><polygon points="32,64 44,24 56,64" fill="#dc2626"/>
+    <circle cx="12" cy="52" r="2" fill="#f97316"/><circle cx="48" cy="56" r="3" fill="#eab308"/>
+</svg>

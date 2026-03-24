@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs><linearGradient id="hour" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#92400e"/></linearGradient></defs>
+    <rect x="16" y="4" width="32" height="4" rx="1" fill="url(#hour)"/>
+    <rect x="16" y="56" width="32" height="4" rx="1" fill="url(#hour)"/>
+    <path d="M18,8 L18,24 Q18,32 32,32 Q46,32 46,24 L46,8 Z" fill="#bfdbfe" opacity="0.4"/>
+    <path d="M18,56 L18,40 Q18,32 32,32 Q46,32 46,40 L46,56 Z" fill="#bfdbfe" opacity="0.4"/>
+    <path d="M22,12 L22,22 Q22,28 32,32" fill="#fde68a"/>
+    <ellipse cx="32" cy="50" rx="10" ry="4" fill="#fde68a"/>
+</svg>
