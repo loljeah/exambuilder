@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/loljeah/exambuilder/internal/config"
@@ -22,7 +23,8 @@ type App struct {
 	cfg    *config.Config
 	db     *db.DB
 	sqlDB  *sql.DB
-	active string // Active project ID
+	mu     sync.RWMutex // Protects active field
+	active string       // Active project ID
 }
 
 // NewApp creates a new App application struct
@@ -79,6 +81,10 @@ type DashboardData struct {
 }
 
 func (a *App) GetDashboardData() DashboardData {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
 	data := DashboardData{}
 
 	// Profile
@@ -150,22 +156,22 @@ func (a *App) GetDashboardData() DashboardData {
 	}
 
 	// Review items due
-	if a.active != "" {
-		if items, err := a.db.GetKnowledgeItemsForReview(a.active, 100); err == nil {
+	if activeProject != "" {
+		if items, err := a.db.GetKnowledgeItemsForReview(activeProject, 100); err == nil {
 			data.ReviewDue = len(items)
 		}
 	}
 
 	// Active project
-	if a.active != "" {
-		if p, err := a.db.GetProject(a.active); err == nil {
+	if activeProject != "" {
+		if p, err := a.db.GetProject(activeProject); err == nil {
 			data.ActiveProject = &ProjectData{
 				ID:   p.ID,
 				Name: p.Name,
 				Path: p.Path,
 			}
 		}
-		if sprints, err := a.db.GetSprints(a.active); err == nil {
+		if sprints, err := a.db.GetSprints(activeProject); err == nil {
 			for _, s := range sprints {
 				if s.Status == "pending" {
 					data.PendingSprints++
@@ -516,15 +522,21 @@ func (a *App) ScanAndImportExams(projectID string) (string, error) {
 }
 
 func (a *App) SetActiveProject(projectID string) error {
+	a.mu.Lock()
 	a.active = projectID
+	a.mu.Unlock()
 	return nil
 }
 
 func (a *App) GetActiveProject() *ProjectData {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
-	p, err := a.db.GetProject(a.active)
+	p, err := a.db.GetProject(activeProject)
 	if err != nil {
 		return nil
 	}
@@ -532,10 +544,14 @@ func (a *App) GetActiveProject() *ProjectData {
 }
 
 func (a *App) GetSprints() []SprintData {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
-	sprints, err := a.db.GetSprints(a.active)
+	sprints, err := a.db.GetSprints(activeProject)
 	if err != nil {
 		return nil
 	}
@@ -562,11 +578,15 @@ func (a *App) GetSprints() []SprintData {
 
 // GetDomains returns all knowledge domains for the active project
 func (a *App) GetDomains() []DomainData {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
 
-	domains, err := a.db.GetDomains(a.active)
+	domains, err := a.db.GetDomains(activeProject)
 	if err != nil {
 		return nil
 	}
@@ -576,7 +596,7 @@ func (a *App) GetDomains() []DomainData {
 		// Get current level title and next level XP
 		levelTitle := "Novice"
 		nextLevelXP := 100
-		levels, _ := a.db.GetDomainLevels(a.active, d.DomainID)
+		levels, _ := a.db.GetDomainLevels(activeProject, d.DomainID)
 		for _, lvl := range levels {
 			if lvl.Level == d.Level {
 				levelTitle = lvl.Title
@@ -614,11 +634,15 @@ func (a *App) GetDomains() []DomainData {
 
 // GetDomainAchievements returns achievements for a specific domain
 func (a *App) GetDomainAchievements(domainID string) []DomainAchievementData {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
 
-	achievements, err := a.db.GetDomainAchievements(a.active, domainID)
+	achievements, err := a.db.GetDomainAchievements(activeProject, domainID)
 	if err != nil {
 		return nil
 	}
@@ -655,10 +679,14 @@ type QuestionData struct {
 }
 
 func (a *App) GetSprintQuestions(sprintNumber int) []QuestionData {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
-	sprint, err := a.db.GetSprint(a.active, sprintNumber)
+	sprint, err := a.db.GetSprint(activeProject, sprintNumber)
 	if err != nil {
 		return nil
 	}
@@ -701,7 +729,10 @@ type ShopItemData struct {
 }
 
 func (a *App) GetShopItems(slot string) []ShopItemData {
-	profile, _ := a.db.GetProfile()
+	profile, err := a.db.GetProfile()
+	if err != nil || profile == nil {
+		return nil
+	}
 	items, err := gamification.GetShopItems(a.sqlDB, slot, profile.Level)
 	if err != nil {
 		return nil
@@ -723,7 +754,10 @@ func (a *App) GetShopItems(slot string) []ShopItemData {
 }
 
 func (a *App) PurchaseItem(itemID string) error {
-	profile, _ := a.db.GetProfile()
+	profile, err := a.db.GetProfile()
+	if err != nil || profile == nil {
+		return fmt.Errorf("failed to get profile")
+	}
 	return gamification.PurchaseItem(a.sqlDB, itemID, profile.Level)
 }
 
@@ -965,12 +999,16 @@ type QuestionResultData struct {
 }
 
 func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintResultData, error) {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil, fmt.Errorf("no active project")
 	}
 
 	// Get sprint
-	sprint, err := a.db.GetSprint(a.active, sprintNumber)
+	sprint, err := a.db.GetSprint(activeProject, sprintNumber)
 	if err != nil {
 		return nil, fmt.Errorf("sprint not found: %w", err)
 	}
@@ -1079,13 +1117,13 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 
 	// Domain XP and level tracking
 	if sprint.DomainID != "" && xpToAward > 0 {
-		levelUp, err := a.db.AddDomainXP(a.active, sprint.DomainID, xpToAward)
+		levelUp, err := a.db.AddDomainXP(activeProject, sprint.DomainID, xpToAward)
 		if err == nil && levelUp != nil && levelUp.LeveledUp {
 			result.DomainLevelUp = true
 			result.DomainNewLevel = levelUp.NewLevel
 			result.DomainNewTitle = levelUp.NewTitle
 			// Get domain name
-			if dom, err := a.db.GetDomainByID(a.active, sprint.DomainID); err == nil {
+			if dom, err := a.db.GetDomainByID(activeProject, sprint.DomainID); err == nil {
 				result.DomainName = dom.Name
 			}
 		}
@@ -1094,10 +1132,10 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 	// Update domain stats on first pass
 	if isFirstPass && sprint.DomainID != "" {
 		perfect := result.ScorePercent == 100
-		a.db.RecordDomainSprintComplete(a.active, sprint.DomainID, true, perfect)
+		a.db.RecordDomainSprintComplete(activeProject, sprint.DomainID, true, perfect)
 
 		// Check domain achievements
-		unlocked, _ := a.db.EvaluateAchievements(a.active, sprint.DomainID)
+		unlocked, _ := a.db.EvaluateAchievements(activeProject, sprint.DomainID)
 		for _, ach := range unlocked {
 			result.UnlockedAchievements = append(result.UnlockedAchievements, UnlockedAchievementData{
 				ID:       ach.ID,
@@ -1145,11 +1183,15 @@ func normalizeAnswer(ans string) string {
 
 // GetSprintHints returns hints for incorrect answers (after first failed attempt)
 func (a *App) GetSprintHints(sprintNumber int) []string {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
 
-	sprint, err := a.db.GetSprint(a.active, sprintNumber)
+	sprint, err := a.db.GetSprint(activeProject, sprintNumber)
 	if err != nil {
 		return nil
 	}
@@ -1164,11 +1206,15 @@ func (a *App) GetSprintHints(sprintNumber int) []string {
 
 // GetSprintExplanations returns full explanations (after second failed attempt)
 func (a *App) GetSprintExplanations(sprintNumber int) []string {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
 
-	sprint, err := a.db.GetSprint(a.active, sprintNumber)
+	sprint, err := a.db.GetSprint(activeProject, sprintNumber)
 	if err != nil {
 		return nil
 	}
@@ -1244,19 +1290,23 @@ type KnowledgeQuestionData struct {
 
 // GetKnowledgeBase returns all questions organized by domain
 func (a *App) GetKnowledgeBase() []KnowledgeQuestionData {
-	if a.active == "" {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
 		return nil
 	}
 
 	// Get all sprints
-	sprints, err := a.db.GetSprints(a.active)
+	sprints, err := a.db.GetSprints(activeProject)
 	if err != nil {
 		return nil
 	}
 
 	// Get domains for names
 	domainNames := make(map[string]string)
-	if domains, err := a.db.GetDomains(a.active); err == nil {
+	if domains, err := a.db.GetDomains(activeProject); err == nil {
 		for _, d := range domains {
 			domainNames[d.DomainID] = d.Name
 		}

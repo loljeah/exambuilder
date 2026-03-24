@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import Dashboard from './pages/Dashboard.svelte';
+  import Projects from './pages/Projects.svelte';
   import Exams from './pages/Exams.svelte';
   import KnowledgeBase from './pages/KnowledgeBase.svelte';
   import Review from './pages/Review.svelte';
@@ -15,6 +16,7 @@
 
   const pages = {
     dashboard: Dashboard,
+    projects: Projects,
     exams: Exams,
     knowledge: KnowledgeBase,
     review: Review,
@@ -25,6 +27,7 @@
   };
 
   function navigate(page) {
+    console.log('App navigate:', page);
     currentPage = page;
   }
 
@@ -33,23 +36,36 @@
     if (e.ctrlKey || e.metaKey) {
       switch(e.key) {
         case '1': navigate('dashboard'); e.preventDefault(); break;
-        case '2': navigate('exams'); e.preventDefault(); break;
-        case '3': navigate('knowledge'); e.preventDefault(); break;
-        case '4': navigate('review'); e.preventDefault(); break;
-        case '5': navigate('stats'); e.preventDefault(); break;
-        case '6': navigate('shop'); e.preventDefault(); break;
-        case '7': navigate('achievements'); e.preventDefault(); break;
+        case '2': navigate('projects'); e.preventDefault(); break;
+        case '3': navigate('exams'); e.preventDefault(); break;
+        case '4': navigate('knowledge'); e.preventDefault(); break;
+        case '5': navigate('review'); e.preventDefault(); break;
+        case '6': navigate('stats'); e.preventDefault(); break;
+        case '7': navigate('shop'); e.preventDefault(); break;
+        case '8': navigate('achievements'); e.preventDefault(); break;
         case ',': navigate('settings'); e.preventDefault(); break;
       }
     }
   }
 
   onMount(() => {
-    try {
-      dashboard.refresh();
-    } catch (err) {
-      console.error('Dashboard refresh error:', err);
-    }
+    // Global error handlers to prevent webkit freezing
+    window.onerror = (message, source, lineno, colno, error) => {
+      console.error('Global error:', message, source, lineno, colno, error);
+      return true; // Prevent default handling
+    };
+
+    window.onunhandledrejection = (event) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      event.preventDefault();
+    };
+
+    // Defer dashboard load to not block initial render
+    setTimeout(() => {
+      dashboard.refresh().catch(err => {
+        console.error('Dashboard refresh failed:', err);
+      });
+    }, 100);
   });
 </script>
 

@@ -9,12 +9,13 @@
 
   const navItems = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard', shortcut: '⌘1' },
-    { id: 'exams', icon: '📝', label: 'Exams', shortcut: '⌘2' },
-    { id: 'knowledge', icon: '📚', label: 'Knowledge', shortcut: '⌘3' },
-    { id: 'review', icon: '🔄', label: 'Review', shortcut: '⌘4' },
-    { id: 'stats', icon: '📈', label: 'Statistics', shortcut: '⌘5' },
-    { id: 'shop', icon: '🛒', label: 'Shop', shortcut: '⌘6' },
-    { id: 'achievements', icon: '🏆', label: 'Achievements', shortcut: '⌘7' },
+    { id: 'projects', icon: '📁', label: 'Projects', shortcut: '⌘2' },
+    { id: 'exams', icon: '📝', label: 'Take Exam', shortcut: '⌘3' },
+    { id: 'knowledge', icon: '📚', label: 'Knowledge', shortcut: '⌘4' },
+    { id: 'review', icon: '🔄', label: 'Review', shortcut: '⌘5' },
+    { id: 'stats', icon: '📈', label: 'Statistics', shortcut: '⌘6' },
+    { id: 'shop', icon: '🛒', label: 'Shop', shortcut: '⌘7' },
+    { id: 'achievements', icon: '🏆', label: 'Achievements', shortcut: '⌘8' },
     { id: 'settings', icon: '⚙️', label: 'Settings', shortcut: '⌘,' },
   ];
 
@@ -23,9 +24,9 @@
     dispatch('navigate', page);
   }
 
-  $: avatarData = $dashboard.avatar;
-  $: walletData = $dashboard.wallet;
-  $: profileData = $dashboard.profile;
+  $: avatarData = $dashboard.avatar || { creature_type: 'cat', name: 'Companion', mood: 'neutral' };
+  $: walletData = $dashboard.wallet || { coins: 0 };
+  $: profileData = $dashboard.profile || { current_streak: 0 };
 </script>
 
 <aside class="sidebar">
