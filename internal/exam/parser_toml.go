@@ -136,8 +136,8 @@ func validateExam(e *ExamFile) error {
 }
 
 func validateSprint(s *Sprint) error {
-	if len(s.Questions) != 5 {
-		return fmt.Errorf("must have exactly 5 questions, got %d", len(s.Questions))
+	if len(s.Questions) < 3 || len(s.Questions) > 5 {
+		return fmt.Errorf("must have 3-5 questions, got %d", len(s.Questions))
 	}
 
 	if s.Topic == "" {

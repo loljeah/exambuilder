@@ -2,22 +2,28 @@ package tray
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 
 	"fyne.io/systray"
 	"github.com/loljeah/exambuilder/assets"
 	"github.com/loljeah/exambuilder/internal/config"
 	"github.com/loljeah/exambuilder/internal/db"
+	"github.com/loljeah/exambuilder/internal/logging"
 )
 
 type Tray struct {
 	cfg *config.Config
 	db  *db.DB
 
+	mOpenGUI *systray.MenuItem
 	mStatus  *systray.MenuItem
 	mDebt    *systray.MenuItem
 	mProfile *systray.MenuItem
 	mQuit    *systray.MenuItem
 
+	guiCmd *exec.Cmd
 	onQuit func()
 }
 
@@ -37,10 +43,12 @@ func (t *Tray) onReady() {
 	systray.SetTitle("kgate")
 	systray.SetTooltip("Knowledge Gate")
 
-	t.mStatus = systray.AddMenuItem("Status: Ready", "Current status")
-	t.mStatus.Disable()
+	t.mOpenGUI = systray.AddMenuItem("Open GUI", "Open Knowledge Gate window")
 
 	systray.AddSeparator()
+
+	t.mStatus = systray.AddMenuItem("Status: Ready", "Current status")
+	t.mStatus.Disable()
 
 	t.mDebt = systray.AddMenuItem("Debt: 0/10", "Knowledge debt")
 	t.mDebt.Disable()
@@ -57,15 +65,94 @@ func (t *Tray) onReady() {
 
 	// Handle clicks
 	go func() {
-		for range t.mQuit.ClickedCh {
-			systray.Quit()
+		for {
+			select {
+			case <-t.mOpenGUI.ClickedCh:
+				t.launchGUI()
+			case <-t.mQuit.ClickedCh:
+				t.stopGUI()
+				systray.Quit()
+				return
+			}
 		}
 	}()
 }
 
 func (t *Tray) onExit() {
+	t.stopGUI()
 	if t.onQuit != nil {
 		t.onQuit()
+	}
+}
+
+// launchGUI starts the GUI application if not already running
+func (t *Tray) launchGUI() {
+	if t.guiCmd != nil && t.guiCmd.Process != nil {
+		// Check if still running
+		if t.guiCmd.ProcessState == nil {
+			logging.Info("GUI already running")
+			return
+		}
+	}
+
+	// Find GUI binary - check multiple locations
+	guiPaths := []string{
+		// Relative to daemon binary
+		"./kgate-gui",
+		"./gui/build/bin/kgate-gui",
+		// System install paths
+		"/usr/local/bin/kgate-gui",
+		"/usr/bin/kgate-gui",
+	}
+
+	// Add path relative to executable
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		guiPaths = append([]string{
+			filepath.Join(dir, "kgate-gui"),
+			filepath.Join(dir, "..", "gui", "build", "bin", "kgate-gui"),
+		}, guiPaths...)
+	}
+
+	var guiPath string
+	for _, p := range guiPaths {
+		if _, err := os.Stat(p); err == nil {
+			guiPath = p
+			break
+		}
+	}
+
+	if guiPath == "" {
+		logging.Error("GUI binary not found", "searched", guiPaths)
+		return
+	}
+
+	logging.Info("launching GUI", "path", guiPath)
+	t.guiCmd = exec.Command(guiPath)
+	t.guiCmd.Stdout = os.Stdout
+	t.guiCmd.Stderr = os.Stderr
+
+	if err := t.guiCmd.Start(); err != nil {
+		logging.Error("failed to launch GUI", "error", err)
+		t.guiCmd = nil
+		return
+	}
+
+	// Wait for process in background to clean up when it exits
+	go func() {
+		if t.guiCmd != nil {
+			t.guiCmd.Wait()
+			logging.Info("GUI exited")
+		}
+	}()
+}
+
+// stopGUI terminates the GUI if running
+func (t *Tray) stopGUI() {
+	if t.guiCmd != nil && t.guiCmd.Process != nil {
+		logging.Info("stopping GUI")
+		t.guiCmd.Process.Signal(os.Interrupt)
+		t.guiCmd = nil
 	}
 }
 
