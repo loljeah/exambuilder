@@ -62,6 +62,9 @@
             python3Packages.pillow
           ];
 
+          # Use webkit2gtk-4.1 instead of 4.0
+          GOFLAGS = "-tags=webkit2_41";
+
           shellHook = ''
             echo "kgate dev environment (Go + Wails)"
             echo "  go build ./cmd/kgate-daemon"
