@@ -13,9 +13,17 @@ type Config struct {
 	Voice         VoiceConfig         `toml:"voice"`
 	Grading       GradingConfig       `toml:"grading"`
 	HTTPBridge    HTTPBridgeConfig    `toml:"http_bridge"`
+	Ollama        OllamaConfig        `toml:"ollama"`
 
 	// Internal, not serialized
 	configDir string `toml:"-"`
+}
+
+type OllamaConfig struct {
+	BaseURL        string `toml:"base_url"`
+	Model          string `toml:"model"`
+	TimeoutSeconds int    `toml:"timeout_seconds"`
+	MaxRetries     int    `toml:"max_retries"`
 }
 
 type GeneralConfig struct {
@@ -100,6 +108,12 @@ func DefaultConfig() *Config {
 		HTTPBridge: HTTPBridgeConfig{
 			Enabled: false,
 			Port:    3001,
+		},
+		Ollama: OllamaConfig{
+			BaseURL:        "http://localhost:11434",
+			Model:          "llama3.1:8b",
+			TimeoutSeconds: 120,
+			MaxRetries:     2,
 		},
 	}
 }

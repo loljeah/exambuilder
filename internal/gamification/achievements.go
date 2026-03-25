@@ -116,6 +116,10 @@ type PlayerStats struct {
 	EarlySprint     bool // Before 6 AM
 	HolidaySprint   bool
 	ComebackDays    int // Days since last activity before return
+	HintsUsed       int  // Total hint tokens used
+	NoHintPass      bool // Passed a sprint without hints while owning tokens
+	Generations     int  // Total LLM generations completed
+	GenDomains      int  // Distinct domains with generations
 }
 
 func getProgressForRequirement(stats *PlayerStats, reqType string) int {
@@ -165,6 +169,17 @@ func getProgressForRequirement(stats *PlayerStats, reqType string) int {
 			return 1
 		}
 		return 0
+	case "hints_used":
+		return stats.HintsUsed
+	case "no_hint_pass":
+		if stats.NoHintPass {
+			return 1
+		}
+		return 0
+	case "generations":
+		return stats.Generations
+	case "gen_domains":
+		return stats.GenDomains
 	default:
 		return 0
 	}
@@ -258,6 +273,15 @@ func GatherPlayerStats(db *sql.DB) (*PlayerStats, error) {
 
 	// Purchase count
 	db.QueryRow(`SELECT COUNT(*) FROM purchase_history`).Scan(&stats.PurchaseCount)
+
+	// Hint tokens used
+	db.QueryRow(`SELECT COUNT(*) FROM hint_usage`).Scan(&stats.HintsUsed)
+
+	// LLM generations completed
+	db.QueryRow(`SELECT COUNT(*) FROM llm_generations WHERE status = 'completed'`).Scan(&stats.Generations)
+
+	// Distinct domains with completed generations
+	db.QueryRow(`SELECT COUNT(DISTINCT domain_id) FROM llm_generations WHERE status = 'completed'`).Scan(&stats.GenDomains)
 
 	// Time-based checks happen at sprint completion, not here
 

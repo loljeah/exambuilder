@@ -19,7 +19,10 @@
 
   onMount(loadAchievements);
 
+  const hiddenCategories = ['collection'];
+
   $: filteredAchievements = achievements.filter(a => {
+    if (hiddenCategories.includes(a.category)) return false;
     if (filter === 'all') return true;
     if (filter === 'unlocked') return a.unlocked;
     if (filter === 'locked') return !a.unlocked;

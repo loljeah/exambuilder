@@ -2,6 +2,13 @@
   import Card from '../lib/components/Card.svelte';
   import Button from '../lib/components/Button.svelte';
 
+  let notification = '';
+
+  function showNotification(msg) {
+    notification = msg;
+    setTimeout(() => notification = '', 3000);
+  }
+
   let settings = {
     theme: 'dark',
     voiceEnabled: true,
@@ -40,6 +47,10 @@
 
 <div class="settings-page">
   <h1 class="page-title">Settings</h1>
+
+  {#if notification}
+    <div class="notification">{notification}</div>
+  {/if}
 
   <div class="settings-content">
     <Card title="General">
@@ -148,6 +159,23 @@
     font-size: 24px;
     font-weight: 700;
     margin-bottom: var(--spacing-lg);
+  }
+
+  .notification {
+    position: fixed;
+    top: var(--spacing-lg);
+    right: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--primary-600);
+    color: white;
+    border-radius: var(--radius-md);
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
 
   .settings-content {

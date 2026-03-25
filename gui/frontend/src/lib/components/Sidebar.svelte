@@ -1,7 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { dashboard } from '../stores/dashboard.js';
-  import Avatar from './Avatar.svelte';
 
   export let currentPage = 'dashboard';
 
@@ -14,7 +13,7 @@
     { id: 'knowledge', icon: '📚', label: 'Knowledge', shortcut: '⌘4' },
     { id: 'review', icon: '🔄', label: 'Review', shortcut: '⌘5' },
     { id: 'stats', icon: '📈', label: 'Statistics', shortcut: '⌘6' },
-    { id: 'shop', icon: '🛒', label: 'Shop', shortcut: '⌘7' },
+    { id: 'shop', icon: '🏪', label: 'Store', shortcut: '⌘7' },
     { id: 'achievements', icon: '🏆', label: 'Achievements', shortcut: '⌘8' },
     { id: 'settings', icon: '⚙️', label: 'Settings', shortcut: '⌘,' },
   ];
@@ -24,26 +23,16 @@
     dispatch('navigate', page);
   }
 
-  $: avatarData = $dashboard.avatar || { creature_type: 'cat', name: 'Companion', mood: 'neutral' };
   $: walletData = $dashboard.wallet || { coins: 0 };
-  $: profileData = $dashboard.profile || { current_streak: 0 };
+  $: profileData = $dashboard.profile || { current_streak: 0, level: 1 };
 </script>
 
 <aside class="sidebar">
   <div class="sidebar-header">
-    <div class="avatar-preview">
-      <Avatar
-        creature={avatarData.creature_type}
-        mood={avatarData.mood}
-        size="medium"
-      />
-    </div>
-    <div class="avatar-info">
-      <span class="avatar-name">{avatarData.name}</span>
-      <div class="quick-stats">
-        <span class="stat coins">💰 {walletData.coins}</span>
-        <span class="stat streak">🔥 {profileData.current_streak}</span>
-      </div>
+    <div class="header-stats">
+      <span class="stat level">Lv.{profileData.level}</span>
+      <span class="stat coins">💰 {walletData.coins}</span>
+      <span class="stat streak">🔥 {profileData.current_streak}</span>
     </div>
   </div>
 
@@ -82,31 +71,18 @@
   .sidebar-header {
     padding: var(--spacing-lg);
     border-bottom: 1px solid var(--bg-tertiary);
+  }
+
+  .header-stats {
     display: flex;
     gap: var(--spacing-md);
     align-items: center;
-  }
-
-  .avatar-preview {
-    flex-shrink: 0;
-  }
-
-  .avatar-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .avatar-name {
-    display: block;
+    font-size: 13px;
     font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: var(--spacing-xs);
   }
 
-  .quick-stats {
-    display: flex;
-    gap: var(--spacing-sm);
-    font-size: 12px;
+  .stat.level {
+    color: var(--primary-400);
   }
 
   .stat {

@@ -1,7 +1,6 @@
 <script>
   import { dashboard } from '../lib/stores/dashboard.js';
   import Card from '../lib/components/Card.svelte';
-  import Avatar from '../lib/components/Avatar.svelte';
   import Button from '../lib/components/Button.svelte';
   import ProgressBar from '../lib/components/ProgressBar.svelte';
   import StatCard from '../lib/components/StatCard.svelte';
@@ -9,19 +8,29 @@
   $: data = $dashboard;
   $: xpToNextLevel = (data.profile.level + 1) * 100;
   $: xpProgress = data.profile.total_xp % 100;
-  $: xpBonus = Math.round((data.avatar.xp_multiplier - 1) * 100);
 
   async function claimDaily() {
-    if (window.go?.main?.App?.ClaimDailyReward) {
-      const coins = await window.go.main.App.ClaimDailyReward();
-      dashboard.refresh();
+    try {
+      if (window.go?.main?.App?.ClaimDailyReward) {
+        console.log('Dashboard: claiming daily reward');
+        const coins = await window.go.main.App.ClaimDailyReward();
+        console.log('Dashboard: claimed', coins, 'coins');
+        await dashboard.refresh();
+      }
+    } catch (err) {
+      console.error('claimDaily error:', err);
     }
   }
 
   async function claimChallenge(id) {
-    if (window.go?.main?.App?.ClaimChallengeReward) {
-      await window.go.main.App.ClaimChallengeReward(id);
-      dashboard.refresh();
+    try {
+      if (window.go?.main?.App?.ClaimChallengeReward) {
+        console.log('Dashboard: claiming challenge', id);
+        await window.go.main.App.ClaimChallengeReward(id);
+        await dashboard.refresh();
+      }
+    } catch (err) {
+      console.error('claimChallenge error:', err);
     }
   }
 </script>
@@ -30,36 +39,6 @@
   <h1 class="page-title">Dashboard</h1>
 
   <div class="dashboard-grid">
-    <!-- Avatar Card -->
-    <Card title="Your Companion">
-      <div class="avatar-section">
-        <Avatar
-          creature={data.avatar.creature_type}
-          mood={data.avatar.mood}
-          size="large"
-        />
-        <div class="avatar-details">
-          <h3>{data.avatar.name}</h3>
-          <p class="mood">
-            {#if data.avatar.mood === 'happy'}
-              😊 Happy
-            {:else if data.avatar.mood === 'content'}
-              🙂 Content
-            {:else if data.avatar.mood === 'neutral'}
-              😐 Neutral
-            {:else if data.avatar.mood === 'sad'}
-              😢 Sad
-            {:else}
-              😔 Lonely
-            {/if}
-          </p>
-          {#if xpBonus > 0}
-            <p class="xp-bonus">+{xpBonus}% XP bonus</p>
-          {/if}
-        </div>
-      </div>
-    </Card>
-
     <!-- Quick Stats -->
     <Card title="Quick Stats">
       <div class="stats-grid">
@@ -203,28 +182,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: var(--spacing-lg);
-  }
-
-  /* Avatar Section */
-  .avatar-section {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-lg);
-  }
-
-  .avatar-details h3 {
-    font-size: 18px;
-    margin-bottom: var(--spacing-xs);
-  }
-
-  .avatar-details .mood {
-    color: var(--text-secondary);
-    margin-bottom: var(--spacing-xs);
-  }
-
-  .avatar-details .xp-bonus {
-    color: var(--accent-green);
-    font-weight: 600;
   }
 
   /* Stats */

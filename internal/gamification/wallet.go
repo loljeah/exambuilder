@@ -31,6 +31,8 @@ const (
 	ReasonWeeklyGoal    = "weekly_goal"
 	ReasonAchievement   = "achievement"
 	ReasonPurchase      = "purchase"
+	ReasonHintPurchase  = "hint_purchase"
+	ReasonLLMGeneration = "llm_generation"
 )
 
 // GetWallet retrieves the current wallet balance

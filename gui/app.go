@@ -16,6 +16,7 @@ import (
 	"github.com/loljeah/exambuilder/internal/db"
 	"github.com/loljeah/exambuilder/internal/exam"
 	"github.com/loljeah/exambuilder/internal/gamification"
+	"github.com/loljeah/exambuilder/internal/llm"
 	"github.com/loljeah/exambuilder/internal/voice"
 )
 
@@ -26,6 +27,7 @@ type App struct {
 	db     *db.DB
 	sqlDB  *sql.DB
 	voice  *voice.Client
+	gen    *llm.Generator
 	mu     sync.RWMutex // Protects active field
 	active string       // Active project ID
 }
@@ -61,6 +63,10 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.db = database
 	a.sqlDB = database.DB
+
+	// Initialize LLM generator
+	ollamaClient := llm.NewClient(cfg.Ollama.BaseURL, cfg.Ollama.Model, cfg.Ollama.TimeoutSeconds)
+	a.gen = llm.NewGenerator(ollamaClient, a.sqlDB, a.db, cfg.Ollama.MaxRetries)
 }
 
 // shutdown is called when the app closes
@@ -1501,4 +1507,220 @@ func (a *App) SpeakSprintResult(passed bool, scorePercent int, xpEarned int) err
 		return nil
 	}
 	return a.voice.SpeakSprintResult(passed, scorePercent, xpEarned)
+}
+
+// ============================================================================
+// Hint Tokens
+// ============================================================================
+
+// HintTokenData represents hint token balance for the frontend
+type HintTokenData struct {
+	Tokens         int `json:"tokens"`
+	LifetimeTokens int `json:"lifetime_tokens"`
+}
+
+// HintPackData represents a purchasable hint pack for the frontend
+type HintPackData struct {
+	Tier   string `json:"tier"`
+	Tokens int    `json:"tokens"`
+	Cost   int    `json:"cost"`
+}
+
+// GetHintTokenBalance returns the current hint token balance
+func (a *App) GetHintTokenBalance() *HintTokenData {
+	if a.sqlDB == nil {
+		return &HintTokenData{}
+	}
+	balance, err := gamification.GetHintTokens(a.sqlDB)
+	if err != nil {
+		return &HintTokenData{}
+	}
+	return &HintTokenData{
+		Tokens:         balance.Tokens,
+		LifetimeTokens: balance.LifetimeTokens,
+	}
+}
+
+// GetHintPacks returns available hint packs for purchase
+func (a *App) GetHintPacks() []HintPackData {
+	packs := gamification.GetHintPacks()
+	var result []HintPackData
+	for _, p := range packs {
+		result = append(result, HintPackData{
+			Tier:   p.Tier,
+			Tokens: p.Tokens,
+			Cost:   p.Cost,
+		})
+	}
+	return result
+}
+
+// PurchaseHintTokens buys a hint pack with coins
+func (a *App) PurchaseHintTokens(tier string) error {
+	if a.sqlDB == nil {
+		return fmt.Errorf("database not initialized")
+	}
+	return gamification.PurchaseHintTokens(a.sqlDB, tier)
+}
+
+// UseHintToken spends one hint token and returns the hint for a question
+func (a *App) UseHintToken(sprintNumber int, questionNumber int) (string, error) {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
+		return "", fmt.Errorf("no active project")
+	}
+	if a.sqlDB == nil {
+		return "", fmt.Errorf("database not initialized")
+	}
+
+	return gamification.UseHintToken(a.sqlDB, a.db, activeProject, sprintNumber, questionNumber)
+}
+
+// GetUsedHintsForSprint returns question numbers that had hints used in a sprint
+func (a *App) GetUsedHintsForSprint(sprintNumber int) []int {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" || a.sqlDB == nil {
+		return nil
+	}
+
+	used, err := gamification.GetHintUsageForSprint(a.sqlDB, activeProject, sprintNumber)
+	if err != nil {
+		return nil
+	}
+	return used
+}
+
+// ============================================================================
+// LLM Generation
+// ============================================================================
+
+// GenerationGateData represents generation availability for a domain
+type GenerationGateData struct {
+	DomainID      string `json:"domain_id"`
+	DomainLevel   int    `json:"domain_level"`
+	CanSprint     bool   `json:"can_sprint"`
+	CanCustom     bool   `json:"can_custom"`
+	CanExam       bool   `json:"can_exam"`
+	CanChallenge  bool   `json:"can_challenge"`
+	FirstFreeUsed bool   `json:"first_free_used"`
+	SprintCost    int    `json:"sprint_cost"`
+	CustomCost    int    `json:"custom_cost"`
+	ExamCost      int    `json:"exam_cost"`
+	ChallengeCost int    `json:"challenge_cost"`
+}
+
+// GenerationResultData represents the result of an LLM generation
+type GenerationResultData struct {
+	GenerationID int64  `json:"generation_id"`
+	SprintIDs    []int  `json:"sprint_ids"`
+	CoinsSpent   int    `json:"coins_spent"`
+	Status       string `json:"status"`
+}
+
+// IsOllamaAvailable checks if the Ollama service is reachable
+func (a *App) IsOllamaAvailable() bool {
+	if a.gen == nil {
+		return false
+	}
+	return a.gen.Client().IsAvailable()
+}
+
+// GetOllamaModels returns available LLM models
+func (a *App) GetOllamaModels() []string {
+	if a.gen == nil {
+		return nil
+	}
+	models, err := a.gen.Client().ListModels()
+	if err != nil {
+		return nil
+	}
+	return models
+}
+
+// GetGenerationGate returns what generation types are unlocked for a domain
+func (a *App) GetGenerationGate(domainID string) *GenerationGateData {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" || a.gen == nil {
+		return &GenerationGateData{DomainID: domainID}
+	}
+
+	gate, err := a.gen.GetGenerationGate(activeProject, domainID)
+	if err != nil {
+		return &GenerationGateData{DomainID: domainID}
+	}
+
+	return &GenerationGateData{
+		DomainID:      gate.DomainID,
+		DomainLevel:   gate.DomainLevel,
+		CanSprint:     gate.CanSprint,
+		CanCustom:     gate.CanCustom,
+		CanExam:       gate.CanExam,
+		CanChallenge:  gate.CanChallenge,
+		FirstFreeUsed: gate.FirstFreeUsed,
+		SprintCost:    gate.SprintCost,
+		CustomCost:    gate.CustomCost,
+		ExamCost:      gate.ExamCost,
+		ChallengeCost: gate.ChallengeCost,
+	}
+}
+
+// GenerateSprintForDomain generates a new sprint using Ollama
+func (a *App) GenerateSprintForDomain(domainID string, topic string) (*GenerationResultData, error) {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
+		return nil, fmt.Errorf("no active project")
+	}
+	if a.gen == nil {
+		return nil, fmt.Errorf("LLM generator not initialized")
+	}
+
+	result, err := a.gen.GenerateSprint(activeProject, domainID, topic)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GenerationResultData{
+		GenerationID: result.GenerationID,
+		SprintIDs:    result.SprintIDs,
+		CoinsSpent:   result.CoinsSpent,
+		Status:       result.Status,
+	}, nil
+}
+
+// GenerateExamForDomain generates a full exam (3 sprints) using Ollama
+func (a *App) GenerateExamForDomain(domainID string) (*GenerationResultData, error) {
+	a.mu.RLock()
+	activeProject := a.active
+	a.mu.RUnlock()
+
+	if activeProject == "" {
+		return nil, fmt.Errorf("no active project")
+	}
+	if a.gen == nil {
+		return nil, fmt.Errorf("LLM generator not initialized")
+	}
+
+	result, err := a.gen.GenerateExam(activeProject, domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GenerationResultData{
+		GenerationID: result.GenerationID,
+		SprintIDs:    result.SprintIDs,
+		CoinsSpent:   result.CoinsSpent,
+		Status:       result.Status,
+	}, nil
 }
