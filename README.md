@@ -9,9 +9,12 @@ Knowledge Gate tracks "knowledge debt" as you work on projects. When debt reache
 ### Features
 
 - **Sprint-based exams**: 3 questions per sprint, 3-5 minutes each
-- **Gamification**: XP, levels, streaks, milestones, progress tracking
+- **Gamification**: XP, levels, coins, streaks, achievements, daily/weekly rewards
+- **Hint tokens**: Buy hints with coins, reveal them on-the-fly during exams
+- **Knowledge Forge**: Generate new sprints and exams via local LLM (Ollama)
 - **Voice mode**: TTS reads questions, STT accepts spoken answers
 - **Auto-import**: File watcher detects `exam_*.md` files automatically
+- **Desktop GUI**: Wails + Svelte app with dashboard, store, stats, and exam runner
 - **System tray**: Visual debt indicator (green/yellow/red)
 - **ADHD-friendly**: Short sprints, instant feedback, no punishment for building
 - **Analytics**: Activity journal, per-question stats, knowledge mastery tracking
@@ -40,8 +43,14 @@ Knowledge Gate tracks "knowledge debt" as you work on projects. When debt reache
 
 ## Quick Start
 
+### Prerequisites
+
+- [Nix](https://nixos.org/download/) with flakes enabled
+- (Optional) [Ollama](https://ollama.ai) for LLM-powered exam generation
+
+### CLI Mode
+
 ```bash
-# Build
 nix develop
 go build ./cmd/kgate-daemon
 go build ./cmd/kgatectl
@@ -54,6 +63,108 @@ go build ./cmd/kgatectl
 ./kgatectl import exam_myproject.md
 ./kgatectl take 1
 ```
+
+### GUI Mode (Wails)
+
+```bash
+nix develop
+cd gui && wails dev      # Development with hot-reload
+cd gui && wails build    # Production build
+```
+
+### Ollama Setup (for Knowledge Forge)
+
+The Knowledge Forge lets you generate new exam content using a local LLM. Run the guided setup script:
+
+```bash
+nix develop
+./scripts/setup-ollama.sh
+```
+
+The script will:
+1. **Detect your GPU** (NVIDIA, AMD/Radeon, Intel Arc, or CPU-only)
+2. **Recommend a model** based on your VRAM/RAM
+3. **Start Ollama** if it's not running
+4. **Pull the model** interactively
+5. **Update your config** if needed
+
+#### GPU Support
+
+| GPU | Detection | Acceleration |
+|-----|-----------|--------------|
+| NVIDIA | `nvidia-smi` | CUDA (automatic) |
+| AMD/Radeon | `lspci` + `rocm-smi` | ROCm (requires `hardware.amdgpu.opencl.enable = true` in NixOS) |
+| Intel Arc | `lspci` | Experimental |
+| CPU-only | fallback | Works, slower inference |
+
+#### Model Recommendations
+
+| Hardware | Model | Size |
+|----------|-------|------|
+| 24GB+ VRAM | `llama3.1:70b-instruct-q4_0` | ~40 GB |
+| 12-24GB VRAM | `llama3.1:8b` | 4.7 GB |
+| 8-12GB VRAM | `llama3.1:8b-instruct-q4_0` | ~4 GB |
+| 6-8GB VRAM | `llama3.2:3b` | 2 GB |
+| CPU 32GB+ RAM | `llama3.1:8b` | 4.7 GB |
+| CPU 16GB RAM | `llama3.2:3b` | 2 GB |
+| CPU <16GB RAM | `llama3.2:1b` | 1 GB |
+
+#### Manual Setup
+
+If you prefer to set up Ollama manually:
+
+```bash
+ollama serve &                  # Start the service
+ollama pull llama3.1:8b         # Pull the default model
+```
+
+To use a different model, update `~/.config/kgate/config.toml`:
+
+```toml
+[ollama]
+base_url = "http://localhost:11434"
+model = "llama3.2:3b"           # Change this
+timeout_seconds = 120
+max_retries = 2
+```
+
+#### AMD/Radeon on NixOS
+
+If you have an AMD GPU but Ollama falls back to CPU mode, enable ROCm in your `configuration.nix`:
+
+```nix
+hardware.amdgpu.opencl.enable = true;
+```
+
+Then rebuild: `sudo nixos-rebuild switch`
+
+## Hint Tokens
+
+Buy hint tokens with coins, then spend them during exams to reveal a hint before answering.
+
+| Pack | Tokens | Cost | Per Token |
+|------|--------|------|-----------|
+| Starter | 3 | 30 coins | 10 coins |
+| Value | 10 | 80 coins | 8 coins |
+| Bulk | 25 | 150 coins | 6 coins |
+
+- Hints are **proactive** (use before answering) vs. post-failure hints which are reactive
+- Each hint can only be used once per question (no double-spend)
+- Hint usage does **not** penalize your score — you paid for the right to use them
+- In voice mode, hints are read aloud via TTS
+
+## Knowledge Forge (LLM Generation)
+
+Generate new sprints and exams on any domain using a local LLM. Generation unlocks as you level up:
+
+| Domain Level | Unlocked | Cost |
+|---|---|---|
+| 3+ | Sprint (3 questions) | 50 coins (first FREE per domain) |
+| 5+ | Custom difficulty sprint | 75 coins |
+| 8+ | Full exam (3 sprints) | 200 coins |
+| 10+ | Cross-domain challenge | 100 coins |
+
+The dopamine loop: **Study > Earn coins + XP > Level up > Unlock generation > Generate new content > Study more**
 
 ## Knowledge Debt System
 
@@ -137,26 +248,36 @@ tar -xzvf kgate-backup.tar.gz -C ~/
 exambuilder/
 ├── cmd/
 │   ├── kgate-daemon/     # Daemon entry point
-│   │   └── migrations/   # Embedded SQL migrations
+│   │   └── migrations/   # Embedded SQL migrations (001-005)
 │   └── kgatectl/         # CLI entry point
+├── gui/                  # Wails desktop app
+│   ├── app.go            # Backend (Wails bindings)
+│   └── frontend/         # Svelte SPA
+│       └── src/pages/    # Dashboard, Store, TakeExam, Stats, etc.
 ├── internal/
-│   ├── config/           # Configuration
+│   ├── config/           # Configuration (TOML)
 │   ├── daemon/           # Socket server
 │   ├── db/               # SQLite layer + analytics
 │   ├── exam/             # Parser + grader
+│   ├── gamification/     # Wallet, achievements, hints, XP
+│   ├── llm/              # Ollama client, prompts, parser, generator
 │   ├── tray/             # System tray
 │   ├── voice/            # TTS/STT clients
 │   └── watcher/          # File watcher
+├── scripts/
+│   └── setup-ollama.sh   # Interactive LLM setup with GPU detection
 ├── assets/               # Embedded icons
 ├── systemd/              # Service files
 ├── docs/                 # Documentation
-└── flake.nix             # Nix build
+└── flake.nix             # Nix build + devShell
 ```
 
 ## Stack
 
 - **Language:** Go
+- **GUI:** Wails v2 + Svelte
 - **Database:** SQLite (WAL mode)
+- **LLM:** Ollama (local inference)
 - **IPC:** Unix sockets
 - **TTS:** piper-daemon
 - **STT:** moonshine-daemon

@@ -105,21 +105,17 @@ func (c *Client) IsMoonshineAvailable() bool {
 	return err == nil && strings.HasPrefix(resp, "OK")
 }
 
-// SpeakQuestion reads a question aloud
+// SpeakQuestion reads a question aloud (skips code blocks)
 func (c *Client) SpeakQuestion(q *db.Question, qNum int) error {
-	// Build speech text
+	// Build speech text - skip code, just speak question and options
 	var parts []string
 
 	parts = append(parts, fmt.Sprintf("Question %d.", qNum))
 	parts = append(parts, q.Text)
 
+	// Skip code - just mention it exists
 	if q.Code != "" {
-		parts = append(parts, "Code snippet follows.")
-		// Simplify code for speech
-		code := strings.ReplaceAll(q.Code, "\n", ". ")
-		code = strings.ReplaceAll(code, "{", " open brace ")
-		code = strings.ReplaceAll(code, "}", " close brace ")
-		parts = append(parts, code)
+		parts = append(parts, "See code snippet below.")
 	}
 
 	for i, opt := range q.Options {
@@ -130,6 +126,28 @@ func (c *Client) SpeakQuestion(q *db.Question, qNum int) error {
 	parts = append(parts, "Your answer?")
 
 	return c.SpeakBlocking(strings.Join(parts, " "))
+}
+
+// GetQuestionSpeechText returns the text that will be spoken for a question
+// Used by frontend to sync typewriter effect with speech
+func (c *Client) GetQuestionSpeechText(q *db.Question, qNum int) string {
+	var parts []string
+
+	parts = append(parts, fmt.Sprintf("Question %d.", qNum))
+	parts = append(parts, q.Text)
+
+	if q.Code != "" {
+		parts = append(parts, "See code snippet below.")
+	}
+
+	for i, opt := range q.Options {
+		letter := string(rune('A' + i))
+		parts = append(parts, fmt.Sprintf("Option %s: %s.", letter, opt))
+	}
+
+	parts = append(parts, "Your answer?")
+
+	return strings.Join(parts, " ")
 }
 
 // SpeakResult announces if the answer was correct

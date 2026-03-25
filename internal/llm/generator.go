@@ -1,10 +1,12 @@
 package llm
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/loljeah/exambuilder/internal/db"
 	"github.com/loljeah/exambuilder/internal/exam"
@@ -46,12 +48,15 @@ type GenerationResult struct {
 
 // Generator orchestrates LLM-based exam generation
 type Generator struct {
-	client     *OllamaClient
-	sqlDB      *sql.DB
-	examDB     *db.DB
-	maxRetries int
-	mu         sync.Mutex // Prevent concurrent generations
+	client      *OllamaClient
+	sqlDB       *sql.DB
+	examDB      *db.DB
+	maxRetries  int
+	mu          sync.Mutex // Prevent concurrent generations
+	lastGenTime time.Time  // Rate limiting: track last generation
 }
+
+const genCooldown = 10 * time.Second // Minimum time between generation requests
 
 // NewGenerator creates a new Generator
 func NewGenerator(client *OllamaClient, sqlDB *sql.DB, examDB *db.DB, maxRetries int) *Generator {
@@ -107,9 +112,15 @@ func (g *Generator) GetGenerationGate(projectID, domainID string) (*GenerationGa
 }
 
 // GenerateSprint generates a single sprint for a domain
-func (g *Generator) GenerateSprint(projectID, domainID, topic string) (*GenerationResult, error) {
+func (g *Generator) GenerateSprint(ctx context.Context, projectID, domainID, topic string) (*GenerationResult, error) {
+	// Enforce rate limit before acquiring the lock
+	if err := g.waitForCooldown(ctx); err != nil {
+		return nil, err
+	}
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.lastGenTime = time.Now()
 
 	// Check gate
 	gate, err := g.GetGenerationGate(projectID, domainID)
@@ -166,7 +177,7 @@ func (g *Generator) GenerateSprint(projectID, domainID, topic string) (*Generati
 	// Build prompt and generate
 	systemPrompt, userPrompt := BuildSprintPrompt(projectName, domainID, domainName, topic, nextNum, existingTopics)
 
-	examFile, rawOutput, err := g.generateWithRetries(systemPrompt, userPrompt)
+	examFile, rawOutput, err := g.generateWithRetries(ctx, systemPrompt, userPrompt)
 	if err != nil {
 		// Refund coins on failure
 		if cost > 0 {
@@ -187,8 +198,10 @@ func (g *Generator) GenerateSprint(projectID, domainID, topic string) (*Generati
 	}
 
 	var sprintNums []int
+	var insertErrors []string
 	for _, s := range dbSprints {
 		if err := g.examDB.UpsertSprint(s); err != nil {
+			insertErrors = append(insertErrors, fmt.Sprintf("sprint %d: %v", s.SprintNumber, err))
 			continue
 		}
 		sprintNums = append(sprintNums, s.SprintNumber)
@@ -217,20 +230,33 @@ func (g *Generator) GenerateSprint(projectID, domainID, topic string) (*Generati
 		`, projectID, domainID)
 	}
 
-	g.updateGenerationStatus(genID, "completed", rawOutput, sprintNums)
+	status := "completed"
+	if len(sprintNums) == 0 && len(insertErrors) > 0 {
+		// All sprints failed to insert — refund
+		if cost > 0 {
+			_ = gamification.AddCoins(g.sqlDB, cost, "generation_refund", fmt.Sprintf("gen_%d", genID))
+		}
+		status = "insert_failed"
+	}
+	g.updateGenerationStatus(genID, status, rawOutput, sprintNums)
 
 	return &GenerationResult{
 		GenerationID: genID,
 		SprintIDs:    sprintNums,
 		CoinsSpent:   cost,
-		Status:       "completed",
+		Status:       status,
 	}, nil
 }
 
 // GenerateExam generates a full exam (3 sprints) for a domain
-func (g *Generator) GenerateExam(projectID, domainID string) (*GenerationResult, error) {
+func (g *Generator) GenerateExam(ctx context.Context, projectID, domainID string) (*GenerationResult, error) {
+	if err := g.waitForCooldown(ctx); err != nil {
+		return nil, err
+	}
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.lastGenTime = time.Now()
 
 	gate, err := g.GetGenerationGate(projectID, domainID)
 	if err != nil {
@@ -268,7 +294,7 @@ func (g *Generator) GenerateExam(projectID, domainID string) (*GenerationResult,
 	topics := []string{domainName + " Fundamentals", domainName + " Application", domainName + " Advanced"}
 	systemPrompt, userPrompt := BuildExamPrompt(projectName, domainID, domainName, topics, nextNum, existingTopics)
 
-	examFile, rawOutput, err := g.generateWithRetries(systemPrompt, userPrompt)
+	examFile, rawOutput, err := g.generateWithRetries(ctx, systemPrompt, userPrompt)
 	if err != nil {
 		_ = gamification.AddCoins(g.sqlDB, cost, "generation_refund", fmt.Sprintf("gen_%d", genID))
 		g.updateGenerationStatus(genID, "failed", rawOutput, nil)
@@ -311,8 +337,25 @@ func (g *Generator) GenerateExam(projectID, domainID string) (*GenerationResult,
 	}, nil
 }
 
-// generateWithRetries attempts generation with retries on validation failure
-func (g *Generator) generateWithRetries(systemPrompt, userPrompt string) (*exam.ExamFile, string, error) {
+// waitForCooldown blocks until the rate limit cooldown has elapsed.
+func (g *Generator) waitForCooldown(ctx context.Context) error {
+	g.mu.Lock()
+	wait := genCooldown - time.Since(g.lastGenTime)
+	g.mu.Unlock()
+	if wait <= 0 {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(wait):
+		return nil
+	}
+}
+
+// generateWithRetries attempts generation with retries on validation failure.
+// Includes exponential backoff between retries.
+func (g *Generator) generateWithRetries(ctx context.Context, systemPrompt, userPrompt string) (*exam.ExamFile, string, error) {
 	var lastErr error
 	var rawOutput string
 
@@ -320,7 +363,17 @@ func (g *Generator) generateWithRetries(systemPrompt, userPrompt string) (*exam.
 	currentUser := userPrompt
 
 	for attempt := 0; attempt <= g.maxRetries; attempt++ {
-		rawOutput, lastErr = g.client.Generate(currentSystem, currentUser)
+		// Backoff before retries (not before first attempt)
+		if attempt > 0 {
+			backoff := time.Duration(attempt*2) * time.Second
+			select {
+			case <-ctx.Done():
+				return nil, rawOutput, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+
+		rawOutput, lastErr = g.client.Generate(ctx, currentSystem, currentUser)
 		if lastErr != nil {
 			continue
 		}
@@ -357,8 +410,16 @@ func (g *Generator) recordGeneration(projectID, domainID, genType string, coinsS
 	return result.LastInsertId()
 }
 
+// maxRawOutputLen limits stored LLM output to prevent unbounded storage.
+const maxRawOutputLen = 64 * 1024 // 64KB
+
 // updateGenerationStatus updates a generation record with results
 func (g *Generator) updateGenerationStatus(genID int64, status, rawOutput string, sprintNums []int) {
+	// Truncate raw output to prevent unbounded storage
+	if len(rawOutput) > maxRawOutputLen {
+		rawOutput = rawOutput[:maxRawOutputLen] + "\n... (truncated)"
+	}
+
 	sprintJSON := "[]"
 	if len(sprintNums) > 0 {
 		if b, err := json.Marshal(sprintNums); err == nil {

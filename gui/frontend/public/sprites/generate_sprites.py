@@ -121,77 +121,125 @@ def draw_ellipse_filled(draw, cx, cy, rx, ry, color):
 # ============================================================
 
 def draw_cat(mood='neutral'):
-    """Draw a cute pixel cat."""
+    """Draw a cute pixel cat with distinctive cat features."""
     img = create_canvas()
     draw = ImageDraw.Draw(img)
 
-    # Body (rounded rectangle-ish)
-    draw_ellipse_filled(draw, 32, 40, 18, 16, 'cat_mid')
-    # Lighter belly
-    draw_ellipse_filled(draw, 32, 44, 12, 10, 'cat_light')
+    # Cat colors - more orange/ginger tabby
+    cat_dark = (150, 100, 70)
+    cat_mid = (210, 160, 120)
+    cat_light = (240, 210, 180)
+    cat_stripe = (130, 80, 50)
+    cat_nose = (255, 150, 150)
+    cat_inner_ear = (255, 180, 180)
 
-    # Head
-    draw_ellipse_filled(draw, 32, 22, 16, 14, 'cat_mid')
-    # Face highlight
-    draw_ellipse_filled(draw, 32, 24, 12, 10, 'cat_light')
+    # Body - sitting cat, more compact and round
+    draw_ellipse_filled(draw, 32, 44, 14, 12, cat_mid)
+    draw_ellipse_filled(draw, 32, 48, 10, 8, cat_light)  # Lighter chest
 
-    # Ears (triangular)
-    for ex, flip in [(18, 1), (46, -1)]:
-        for i in range(8):
-            for j in range(8 - i):
-                px = ex + (j * flip)
-                py = 8 + i
-                draw_pixel(draw, px, py, 'cat_mid')
-        # Inner ear
-        for i in range(4):
-            for j in range(4 - i):
-                px = ex + 2 * flip + (j * flip)
-                py = 11 + i
-                draw_pixel(draw, px, py, 'cat_nose')
+    # Back legs (folded, sitting)
+    draw_ellipse_filled(draw, 20, 50, 8, 6, cat_mid)
+    draw_ellipse_filled(draw, 44, 50, 8, 6, cat_mid)
 
-    # Eyes
-    eye_y = 20
-    for ex in [24, 38]:
-        draw_ellipse_filled(draw, ex, eye_y, 4, 5, 'eye_white')
+    # Front paws
+    draw_ellipse_filled(draw, 24, 54, 5, 4, cat_light)
+    draw_ellipse_filled(draw, 40, 54, 5, 4, cat_light)
+    # Paw pads (small dots)
+    for px in [24, 40]:
+        draw_pixel(draw, px, 56, cat_nose, 2)
+
+    # Head - more triangular/pointed cat shape
+    # Main head shape
+    draw_ellipse_filled(draw, 32, 24, 14, 12, cat_mid)
+    # Muzzle area (lighter, slightly protruding)
+    draw_ellipse_filled(draw, 32, 28, 8, 6, cat_light)
+
+    # LARGE POINTY EARS - key cat feature!
+    # Left ear (triangle pointing up-left)
+    ear_points_left = [(14, 6), (22, 4), (24, 18), (16, 16)]
+    draw.polygon(ear_points_left, fill=cat_mid)
+    # Inner ear
+    inner_left = [(16, 9), (20, 7), (22, 15), (18, 14)]
+    draw.polygon(inner_left, fill=cat_inner_ear)
+
+    # Right ear (triangle pointing up-right)
+    ear_points_right = [(50, 6), (42, 4), (40, 18), (48, 16)]
+    draw.polygon(ear_points_right, fill=cat_mid)
+    # Inner ear
+    inner_right = [(48, 9), (44, 7), (42, 15), (46, 14)]
+    draw.polygon(inner_right, fill=cat_inner_ear)
+
+    # Tabby stripes on forehead
+    draw.line([28, 14, 32, 10], fill=cat_stripe, width=2)
+    draw.line([32, 10, 36, 14], fill=cat_stripe, width=2)
+    draw.line([30, 16, 32, 12], fill=cat_stripe, width=1)
+    draw.line([32, 12, 34, 16], fill=cat_stripe, width=1)
+
+    # Eyes - large, almond-shaped (cat eyes!)
+    eye_y = 22
+    for ex in [25, 39]:
+        # White of eye (almond shape)
+        draw_ellipse_filled(draw, ex, eye_y, 5, 4, (255, 255, 255))
+
         if mood == 'happy':
-            draw.line([ex - 3, eye_y, ex + 3, eye_y], fill=PALETTE['eye_dark'], width=2)
-            continue
-        pupil_offset = 1 if mood == 'sad' else (-1 if mood == 'lonely' and ex < 32 else (1 if mood == 'lonely' else 0))
-        draw_ellipse_filled(draw, ex + (1 if ex > 32 else -1), eye_y + pupil_offset, 2, 3, 'eye_dark')
-        draw_pixel(draw, ex, eye_y - 2 + pupil_offset, 'eye_shine')
+            # Happy closed eyes (^_^)
+            draw.arc([ex - 4, eye_y - 3, ex + 4, eye_y + 3], 200, 340, fill=cat_dark, width=2)
+        else:
+            # Cat-like vertical pupil
+            pupil_y_offset = 1 if mood == 'sad' else 0
+            # Iris (green/yellow cat eyes)
+            draw_ellipse_filled(draw, ex, eye_y + pupil_y_offset, 4, 4, (120, 180, 80))
+            # Vertical slit pupil
+            draw.line([ex, eye_y - 3 + pupil_y_offset, ex, eye_y + 3 + pupil_y_offset],
+                     fill=(20, 20, 20), width=2)
+            # Eye shine
+            draw_pixel(draw, ex - 1, eye_y - 2 + pupil_y_offset, (255, 255, 255), 2)
 
-    # Nose
-    draw_ellipse_filled(draw, 32, 28, 2, 2, 'cat_nose')
+    # Cat nose - small pink triangle
+    nose_points = [(32, 26), (29, 30), (35, 30)]
+    draw.polygon(nose_points, fill=cat_nose)
 
-    # Mouth based on mood
+    # Mouth and expression
     if mood == 'happy':
-        draw.arc([26, 26, 38, 36], 0, 180, fill=PALETTE['cat_dark'], width=2)
-        draw_ellipse_filled(draw, 20, 26, 3, 2, 'happy_blush')
-        draw_ellipse_filled(draw, 44, 26, 3, 2, 'happy_blush')
+        # Big smile with blush
+        draw.arc([24, 28, 40, 38], 0, 180, fill=cat_dark, width=2)
+        draw_ellipse_filled(draw, 18, 26, 3, 2, (255, 180, 200))  # Left blush
+        draw_ellipse_filled(draw, 46, 26, 3, 2, (255, 180, 200))  # Right blush
     elif mood == 'content':
-        draw.arc([28, 28, 36, 34], 0, 180, fill=PALETTE['cat_dark'], width=1)
+        # Small cat smile (:3)
+        draw.arc([28, 30, 32, 34], 0, 180, fill=cat_dark, width=1)
+        draw.arc([32, 30, 36, 34], 0, 180, fill=cat_dark, width=1)
     elif mood == 'sad':
-        draw.arc([28, 30, 36, 38], 180, 360, fill=PALETTE['cat_dark'], width=1)
-        draw_ellipse_filled(draw, 42, 26, 2, 3, 'sad_tear')
+        draw.arc([28, 32, 36, 38], 180, 360, fill=cat_dark, width=1)
+        # Tear
+        draw_ellipse_filled(draw, 42, 28, 2, 3, (150, 200, 255))
     elif mood == 'lonely':
-        draw.line([28, 32, 36, 32], fill=PALETTE['cat_dark'], width=1)
-    else:
-        draw.line([28, 31, 36, 31], fill=PALETTE['cat_dark'], width=1)
+        draw.line([29, 33, 35, 33], fill=cat_dark, width=1)
+    else:  # neutral
+        # Neutral cat mouth (:3 shape but subtle)
+        draw.line([29, 32, 32, 34], fill=cat_dark, width=1)
+        draw.line([32, 34, 35, 32], fill=cat_dark, width=1)
 
-    # Tail
-    for i in range(12):
-        tx = 50 + i // 2
-        ty = 36 + (i % 4) - 2
-        draw_ellipse_filled(draw, tx, ty, 3, 3, 'cat_mid')
+    # Whiskers - 3 on each side
+    whisker_color = cat_dark
+    # Left whiskers
+    draw.line([10, 26, 22, 28], fill=whisker_color, width=1)
+    draw.line([8, 30, 22, 30], fill=whisker_color, width=1)
+    draw.line([10, 34, 22, 32], fill=whisker_color, width=1)
+    # Right whiskers
+    draw.line([42, 28, 54, 26], fill=whisker_color, width=1)
+    draw.line([42, 30, 56, 30], fill=whisker_color, width=1)
+    draw.line([42, 32, 54, 34], fill=whisker_color, width=1)
 
-    # Paws
-    for px in [22, 42]:
-        draw_ellipse_filled(draw, px, 54, 5, 4, 'cat_light')
-
-    # Whiskers
-    for wy in [24, 28]:
-        draw.line([14, wy, 22, wy + 1], fill=PALETTE['cat_dark'], width=1)
-        draw.line([42, wy + 1, 50, wy], fill=PALETTE['cat_dark'], width=1)
+    # Tail - curving up from behind
+    tail_color = cat_mid
+    # Draw curved tail
+    for i in range(10):
+        tx = 50 + i * 0.8
+        ty = 38 - (i * i * 0.15)  # Curves upward
+        draw_ellipse_filled(draw, int(tx), int(ty), 3, 3, tail_color)
+    # Darker tip
+    draw_ellipse_filled(draw, 58, 25, 4, 3, cat_stripe)
 
     return img
 

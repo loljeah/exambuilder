@@ -1,0 +1,462 @@
+[meta]
+project = "exambuilder"
+version = "2.1"
+generated = "2026-03-23"
+voice_ready = true
+pass_threshold = 60
+total_xp = 150
+content_type = "code"
+
+# ═══════════════════════════════════════════════════════════════════
+# KNOWLEDGE DOMAINS
+# ═══════════════════════════════════════════════════════════════════
+[[meta.domain]]
+id = "architecture"
+name = "Go Architecture"
+description = "Application structure, Wails integration, module design"
+color = "#3B82F6"
+icon = "🏗️"
+sprints = [1]
+total_xp = 30
+
+[[meta.domain]]
+id = "parsing"
+name = "Exam Parsing"
+description = "TOML parsing, validation, data structures"
+color = "#8B5CF6"
+icon = "📄"
+sprints = [2]
+total_xp = 30
+
+[[meta.domain]]
+id = "voice"
+name = "Voice Integration"
+description = "TTS daemon, speech synthesis, audio timing"
+color = "#EC4899"
+icon = "🎙️"
+sprints = [3]
+total_xp = 35
+
+[[meta.domain]]
+id = "gamification"
+name = "Gamification"
+description = "XP system, achievements, shop, wallet"
+color = "#F59E0B"
+icon = "🎮"
+sprints = [4]
+total_xp = 30
+
+[[meta.domain]]
+id = "security"
+name = "Security & Debugging"
+description = "Path traversal, permissions, troubleshooting"
+color = "#EF4444"
+icon = "🔒"
+sprints = [5]
+total_xp = 35
+
+# ═══════════════════════════════════════════════════════════════════
+# DOMAIN ACHIEVEMENTS
+# ═══════════════════════════════════════════════════════════════════
+[[meta.achievement]]
+id = "architecture_learner"
+domain = "architecture"
+name = "Blueprint Reader"
+description = "Pass the Architecture sprint"
+condition = "domain_sprints_passed >= 1"
+xp_reward = 25
+icon = "📐"
+
+[[meta.achievement]]
+id = "parsing_learner"
+domain = "parsing"
+name = "Format Decoder"
+description = "Pass the Exam Parsing sprint"
+condition = "domain_sprints_passed >= 1"
+xp_reward = 25
+icon = "🔍"
+
+[[meta.achievement]]
+id = "voice_learner"
+domain = "voice"
+name = "Voice Activated"
+description = "Pass the Voice Integration sprint"
+condition = "domain_sprints_passed >= 1"
+xp_reward = 25
+icon = "🔊"
+
+[[meta.achievement]]
+id = "gamification_learner"
+domain = "gamification"
+name = "Game Designer"
+description = "Pass the Gamification sprint"
+condition = "domain_sprints_passed >= 1"
+xp_reward = 25
+icon = "🎲"
+
+[[meta.achievement]]
+id = "security_learner"
+domain = "security"
+name = "Security Aware"
+description = "Pass the Security sprint"
+condition = "domain_sprints_passed >= 1"
+xp_reward = 30
+icon = "🛡️"
+
+[[meta.achievement]]
+id = "full_stack_master"
+domain = "architecture"
+name = "Full Stack Master"
+description = "Pass all sprints with 100%"
+condition = "total_sprints_perfect == total_sprints"
+xp_reward = 150
+icon = "👑"
+
+# ═══════════════════════════════════════════════════════════════════
+# DOMAIN LEVEL DEFINITIONS
+# ═══════════════════════════════════════════════════════════════════
+[[meta.domain_levels]]
+domain = "architecture"
+levels = [0, 20, 50, 100, 200, 350]
+titles = ["Novice", "Apprentice", "Developer", "Engineer", "Architect", "Visionary"]
+
+[[meta.domain_levels]]
+domain = "parsing"
+levels = [0, 20, 50, 100, 200, 350]
+titles = ["Reader", "Parser", "Validator", "Transformer", "Architect", "Guru"]
+
+[[meta.domain_levels]]
+domain = "voice"
+levels = [0, 25, 60, 120, 250, 400]
+titles = ["Silent", "Whisperer", "Speaker", "Narrator", "Announcer", "Orator"]
+
+[[meta.domain_levels]]
+domain = "gamification"
+levels = [0, 20, 50, 100, 200, 350]
+titles = ["Player", "Gamer", "Designer", "Architect", "Master", "Legend"]
+
+[[meta.domain_levels]]
+domain = "security"
+levels = [0, 25, 60, 120, 250, 400]
+titles = ["Unaware", "Cautious", "Vigilant", "Defender", "Guardian", "Sentinel"]
+
+# ═══════════════════════════════════════════════════════════════════
+# SPRINTS
+# ═══════════════════════════════════════════════════════════════════
+
+# Sprint 1: Go Architecture
+[[sprint]]
+number = 1
+topic = "Go Architecture"
+domain = "architecture"
+subdomain = "wails_structure"
+target_minutes = 3
+voice_compatible = true
+
+[[sprint.question]]
+number = 1
+tier = "RECALL"
+difficulty = 1
+xp = 10
+text = "What package contains the GUI application entry point?"
+code = ""
+options = [
+    "cmd/kgate-daemon",
+    "gui/main.go",
+    "internal/app",
+    "cmd/kgatectl"
+]
+answer = 1
+hint = "Look at the wails.json configuration"
+explanation = "The GUI is a Wails application with its entry point in gui/main.go, separate from the daemon and CLI tools."
+
+[[sprint.question]]
+number = 2
+tier = "COMPREHENSION"
+difficulty = 2
+xp = 10
+text = "Why does the App struct hold both db.DB and sql.DB references?"
+code = """
+type App struct {
+    db    *db.DB
+    sqlDB *sql.DB
+}
+"""
+options = [
+    "For database connection pooling",
+    "db.DB wraps queries, sql.DB is needed for gamification package",
+    "sql.DB is a backup connection",
+    "They connect to different databases"
+]
+answer = 1
+hint = "Check what packages use each reference"
+explanation = "db.DB provides custom query methods, while gamification functions need the raw *sql.DB to run their own queries."
+
+[[sprint.question]]
+number = 3
+tier = "APPLICATION"
+difficulty = 3
+xp = 10
+text = "GetSprintQuestions returns nil. What should you check first?"
+code = ""
+options = [
+    "Database connection",
+    "If a.active is set (active project ID)",
+    "Sprint number validity",
+    "JSON parsing errors"
+]
+answer = 1
+hint = "The function has an early return"
+explanation = "GetSprintQuestions returns nil immediately if a.active is empty. SetActiveProject must be called first."
+
+# Sprint 2: Exam Parsing
+[[sprint]]
+number = 2
+topic = "Exam Parsing"
+domain = "parsing"
+subdomain = "toml_format"
+target_minutes = 3
+voice_compatible = true
+
+[[sprint.question]]
+number = 1
+tier = "RECALL"
+difficulty = 1
+xp = 10
+text = "What file format does the v2.0 exam system use?"
+code = ""
+options = [
+    "Markdown with regex parsing",
+    "TOML with native decoding",
+    "YAML with custom parser",
+    "JSON with schema validation"
+]
+answer = 1
+hint = "Check DATASTRUCT.md"
+explanation = "TOML v2.0 format enables single-pass parsing with the BurntSushi/toml library, eliminating complex regex."
+
+[[sprint.question]]
+number = 2
+tier = "COMPREHENSION"
+difficulty = 2
+xp = 10
+text = "Why must Q1 in every sprint have difficulty = 1?"
+code = ""
+options = [
+    "Technical limitation of the parser",
+    "ADHD design: easy win for dopamine kickstart",
+    "Database schema constraint",
+    "Voice mode requirement"
+]
+answer = 1
+hint = "Read the ADHD design principles"
+explanation = "Starting with an easy win reduces activation energy and provides immediate positive feedback, crucial for ADHD learners."
+
+[[sprint.question]]
+number = 3
+tier = "APPLICATION"
+difficulty = 3
+xp = 10
+text = "Validation fails with 'must have exactly 4 options'. Which field is wrong?"
+code = """
+[[sprint.question]]
+options = [
+    "Option A",
+    "Option B",
+    "Option C"
+]
+"""
+options = [
+    "tier is missing",
+    "options array has only 3 elements",
+    "answer index is out of range",
+    "code field is required"
+]
+answer = 1
+hint = "Count the array elements"
+explanation = "The options array must have exactly 4 elements. This ensures consistent MC format for voice mode."
+
+# Sprint 3: Voice Integration
+[[sprint]]
+number = 3
+topic = "Voice Integration"
+domain = "voice"
+subdomain = "piper_tts"
+target_minutes = 3
+voice_compatible = true
+
+[[sprint.question]]
+number = 1
+tier = "RECALL"
+difficulty = 1
+xp = 10
+text = "What Unix socket does the Piper TTS daemon listen on by default?"
+code = ""
+options = [
+    "/tmp/tts.sock",
+    "/tmp/piper-daemon.sock",
+    "/var/run/piper.sock",
+    "/tmp/voice/piper.sock"
+]
+answer = 1
+hint = "Check config.go voice section"
+explanation = "Default is /tmp/piper-daemon.sock, configurable via config.voice.piper_daemon_socket."
+
+[[sprint.question]]
+number = 2
+tier = "COMPREHENSION"
+difficulty = 2
+xp = 10
+text = "Why does SpeakQuestion skip reading code blocks aloud?"
+code = ""
+options = [
+    "TTS cannot handle code",
+    "Code is visual, reading it aloud is confusing",
+    "Performance optimization",
+    "Voice mode is disabled for code questions"
+]
+answer = 1
+hint = "Think about how code sounds when spoken"
+explanation = "Code with braces, semicolons, and symbols sounds garbled. Better to say 'See code snippet below' and show it visually."
+
+[[sprint.question]]
+number = 3
+tier = "APPLICATION"
+difficulty = 3
+xp = 15
+text = "Typewriter effect is out of sync with speech. What timing calculation is wrong?"
+code = """
+estimatedMs := wordCount * 400
+charsPerMs := float64(len(text)) / float64(estimatedMs)
+"""
+options = [
+    "wordCount calculation is wrong",
+    "400ms per word assumes 150 WPM, Piper may be faster",
+    "charsPerMs should be inverted",
+    "estimatedMs should use character count"
+]
+answer = 1
+hint = "TTS speed varies by engine and voice"
+explanation = "The 400ms/word estimate (150 WPM) may not match Piper's actual speed. Should calibrate or use speech duration callback."
+
+# Sprint 4: Gamification
+[[sprint]]
+number = 4
+topic = "Gamification"
+domain = "gamification"
+subdomain = "xp_system"
+target_minutes = 3
+voice_compatible = true
+
+[[sprint.question]]
+number = 1
+tier = "RECALL"
+difficulty = 1
+xp = 10
+text = "What table stores purchased shop items?"
+code = ""
+options = [
+    "shop_items",
+    "inventory",
+    "purchases",
+    "user_items"
+]
+answer = 1
+hint = "Check the 003_gamification.sql migration"
+explanation = "The inventory table links users to owned items. shop_items defines available items, inventory tracks ownership."
+
+[[sprint.question]]
+number = 2
+tier = "COMPREHENSION"
+difficulty = 2
+xp = 10
+text = "Why does AddCoins take a 'reason' and 'source' parameter?"
+code = """
+func AddCoins(db *sql.DB, amount int, reason, source string) error
+"""
+options = [
+    "For transaction logging",
+    "Audit trail and analytics tracking",
+    "Database constraint requirement",
+    "Multi-currency support"
+]
+answer = 1
+hint = "Think about tracking where coins come from"
+explanation = "Reason and source enable analytics (e.g., 'sprint_completed', 'sprint_3') and audit trails for debugging."
+
+[[sprint.question]]
+number = 3
+tier = "APPLICATION"
+difficulty = 3
+xp = 10
+text = "Achievement 'first_sprint' should unlock but doesn't. What stat triggers it?"
+code = ""
+options = [
+    "stats.SprintsPassed >= 1",
+    "stats.TotalXP >= 10",
+    "stats.CurrentStreak >= 1",
+    "stats.QuestionsCorrect >= 3"
+]
+answer = 0
+hint = "Check achievement_seed.go conditions"
+explanation = "first_sprint checks SprintsPassed >= 1. Ensure RecordSprintAttempt updates the profile correctly."
+
+# Sprint 5: Security & Debugging
+[[sprint]]
+number = 5
+topic = "Security & Debugging"
+domain = "security"
+subdomain = "hardening"
+target_minutes = 3
+voice_compatible = true
+
+[[sprint.question]]
+number = 1
+tier = "RECALL"
+difficulty = 1
+xp = 10
+text = "What prevents path traversal in exam file imports?"
+code = ""
+options = [
+    "Sandboxed filesystem",
+    "Canonical path resolution and home directory check",
+    "File extension whitelist only",
+    "Read-only file permissions"
+]
+answer = 1
+hint = "Check the daemon's import command handler"
+explanation = "Files are resolved to canonical paths and verified to be under the user's home directory before reading."
+
+[[sprint.question]]
+number = 2
+tier = "COMPREHENSION"
+difficulty = 2
+xp = 10
+text = "Why does the Unix socket have 0700 permissions?"
+code = ""
+options = [
+    "Default Go socket permissions",
+    "Only socket owner can connect, preventing other users from sending commands",
+    "Required for systemd integration",
+    "Performance optimization"
+]
+answer = 1
+hint = "Think about multi-user systems"
+explanation = "0700 means only the owner can read/write/execute. Other users on the system cannot connect to the daemon."
+
+[[sprint.question]]
+number = 3
+tier = "ANALYSIS"
+difficulty = 3
+xp = 15
+text = "Questions load in browser but not in Wails native window. What's the likely cause?"
+code = ""
+options = [
+    "Different JavaScript engines",
+    "Wails binding not generated after adding new Go method",
+    "CORS policy difference",
+    "WebKit version incompatibility"
+]
+answer = 1
+hint = "Wails generates TypeScript bindings from Go"
+explanation = "After adding new methods to app.go, run 'wails generate module' to regenerate bindings in frontend/wailsjs/."

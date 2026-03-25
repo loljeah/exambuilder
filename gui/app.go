@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -30,6 +31,9 @@ type App struct {
 	gen    *llm.Generator
 	mu     sync.RWMutex // Protects active field
 	active string       // Active project ID
+
+	pullMu       sync.Mutex
+	pullProgress *PullProgressData
 }
 
 // NewApp creates a new App application struct
@@ -1064,8 +1068,7 @@ func (a *App) SubmitSprintAnswers(sprintNumber int, answers []string) (*SprintRe
 
 		if i < len(answers) {
 			qr.UserAnswer = normalizeAnswer(answers[i])
-			// Normalize both sides and compare (handles case and multi-choice ordering)
-			qr.Correct = normalizeAnswer(qr.UserAnswer) == normalizeAnswer(qr.RightAnswer)
+			qr.Correct = qr.UserAnswer == normalizeAnswer(qr.RightAnswer)
 			if qr.Correct {
 				qr.XPEarned = q.XP
 				result.CorrectCount++
@@ -1686,7 +1689,7 @@ func (a *App) GenerateSprintForDomain(domainID string, topic string) (*Generatio
 		return nil, fmt.Errorf("LLM generator not initialized")
 	}
 
-	result, err := a.gen.GenerateSprint(activeProject, domainID, topic)
+	result, err := a.gen.GenerateSprint(a.ctx, activeProject, domainID, topic)
 	if err != nil {
 		return nil, err
 	}
@@ -1712,7 +1715,7 @@ func (a *App) GenerateExamForDomain(domainID string) (*GenerationResultData, err
 		return nil, fmt.Errorf("LLM generator not initialized")
 	}
 
-	result, err := a.gen.GenerateExam(activeProject, domainID)
+	result, err := a.gen.GenerateExam(a.ctx, activeProject, domainID)
 	if err != nil {
 		return nil, err
 	}
@@ -1723,4 +1726,254 @@ func (a *App) GenerateExamForDomain(domainID string) (*GenerationResultData, err
 		CoinsSpent:   result.CoinsSpent,
 		Status:       result.Status,
 	}, nil
+}
+
+// ============================================================================
+// Ollama Settings & System Info
+// ============================================================================
+
+// OllamaConfigData represents Ollama configuration for the frontend
+type OllamaConfigData struct {
+	BaseURL        string `json:"base_url"`
+	Model          string `json:"model"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+	MaxRetries     int    `json:"max_retries"`
+}
+
+// SystemInfoData represents detected hardware for the frontend
+type SystemInfoData struct {
+	GPUType   string `json:"gpu_type"`
+	GPUName   string `json:"gpu_name"`
+	VRAMGB    int    `json:"vram_gb"`
+	RAMGB     int    `json:"ram_gb"`
+	RecModel  string `json:"rec_model"`
+	RecSize   string `json:"rec_size"`
+	RecReason string `json:"rec_reason"`
+}
+
+// PullProgressData represents model pull progress for the frontend
+type PullProgressData struct {
+	Active  bool    `json:"active"`
+	Model   string  `json:"model"`
+	Status  string  `json:"status"`
+	Percent float64 `json:"percent"`
+	Error   string  `json:"error,omitempty"`
+}
+
+// TestResultData represents connection test results for the frontend
+type TestResultData struct {
+	Reachable    bool   `json:"reachable"`
+	ModelLoaded  bool   `json:"model_loaded"`
+	GenerateOK   bool   `json:"generate_ok"`
+	ResponseTime int    `json:"response_time_ms"`
+	Error        string `json:"error,omitempty"`
+}
+
+// GetOllamaConfig returns the current Ollama configuration
+func (a *App) GetOllamaConfig() *OllamaConfigData {
+	if a.cfg == nil {
+		return &OllamaConfigData{}
+	}
+	return &OllamaConfigData{
+		BaseURL:        a.cfg.Ollama.BaseURL,
+		Model:          a.cfg.Ollama.Model,
+		TimeoutSeconds: a.cfg.Ollama.TimeoutSeconds,
+		MaxRetries:     a.cfg.Ollama.MaxRetries,
+	}
+}
+
+// UpdateOllamaConfig saves new Ollama settings and recreates the client
+func (a *App) UpdateOllamaConfig(baseURL, model string, timeout, retries int) error {
+	if a.cfg == nil {
+		return fmt.Errorf("config not loaded")
+	}
+
+	// Validate base URL to prevent SSRF
+	if err := validateOllamaURL(baseURL); err != nil {
+		return err
+	}
+
+	// Clamp timeout and retries to safe bounds
+	if timeout < 10 {
+		timeout = 10
+	} else if timeout > 600 {
+		timeout = 600
+	}
+	if retries < 0 {
+		retries = 0
+	} else if retries > 10 {
+		retries = 10
+	}
+
+	a.cfg.Ollama.BaseURL = baseURL
+	a.cfg.Ollama.Model = model
+	a.cfg.Ollama.TimeoutSeconds = timeout
+	a.cfg.Ollama.MaxRetries = retries
+
+	// Recreate LLM client and generator with new settings
+	ollamaClient := llm.NewClient(baseURL, model, timeout)
+	a.gen = llm.NewGenerator(ollamaClient, a.sqlDB, a.db, retries)
+
+	return a.cfg.Save()
+}
+
+// validateOllamaURL checks that the URL is a valid HTTP(S) URL pointing to a safe host
+func validateOllamaURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("URL scheme must be http or https, got %q", u.Scheme)
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		return fmt.Errorf("URL must have a hostname")
+	}
+	// Block cloud metadata endpoints
+	blockedHosts := []string{"metadata.google.internal", "169.254.169.254"}
+	for _, blocked := range blockedHosts {
+		if host == blocked {
+			return fmt.Errorf("URL hostname %q is not allowed", host)
+		}
+	}
+	return nil
+}
+
+// GetSystemInfo detects GPU hardware and returns model recommendation
+func (a *App) GetSystemInfo() *SystemInfoData {
+	info := llm.DetectSystem()
+	return &SystemInfoData{
+		GPUType:   info.GPUType,
+		GPUName:   info.GPUName,
+		VRAMGB:    info.VRAMGB,
+		RAMGB:     info.RAMGB,
+		RecModel:  info.RecModel,
+		RecSize:   info.RecSize,
+		RecReason: info.RecReason,
+	}
+}
+
+// PullOllamaModel starts downloading a model in the background
+func (a *App) PullOllamaModel(model string) error {
+	if a.gen == nil {
+		return fmt.Errorf("LLM generator not initialized")
+	}
+
+	// Capture client reference under the lock to avoid races with UpdateOllamaConfig
+	a.pullMu.Lock()
+	if a.pullProgress != nil && a.pullProgress.Active {
+		a.pullMu.Unlock()
+		return fmt.Errorf("a model pull is already in progress")
+	}
+	client := a.gen.Client()
+	a.pullProgress = &PullProgressData{
+		Active: true,
+		Model:  model,
+		Status: "starting",
+	}
+	a.pullMu.Unlock()
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				a.pullMu.Lock()
+				a.pullProgress.Status = "error"
+				a.pullProgress.Error = fmt.Sprintf("panic: %v", r)
+				a.pullProgress.Active = false
+				a.pullMu.Unlock()
+			}
+		}()
+
+		progressCh := make(chan llm.PullProgress, 16)
+
+		go func() {
+			for p := range progressCh {
+				a.pullMu.Lock()
+				a.pullProgress.Status = p.Status
+				a.pullProgress.Percent = p.Percent
+				a.pullMu.Unlock()
+			}
+		}()
+
+		err := client.PullModel(a.ctx, model, progressCh)
+
+		a.pullMu.Lock()
+		if err != nil {
+			a.pullProgress.Status = "error"
+			a.pullProgress.Error = err.Error()
+		} else {
+			a.pullProgress.Status = "complete"
+			a.pullProgress.Percent = 100
+		}
+		a.pullProgress.Active = false
+		a.pullMu.Unlock()
+	}()
+
+	return nil
+}
+
+// GetPullProgress returns the current model pull progress
+func (a *App) GetPullProgress() *PullProgressData {
+	a.pullMu.Lock()
+	defer a.pullMu.Unlock()
+
+	if a.pullProgress == nil {
+		return &PullProgressData{}
+	}
+	return &PullProgressData{
+		Active:  a.pullProgress.Active,
+		Model:   a.pullProgress.Model,
+		Status:  a.pullProgress.Status,
+		Percent: a.pullProgress.Percent,
+		Error:   a.pullProgress.Error,
+	}
+}
+
+// TestOllamaConnection runs a 3-step connection test
+func (a *App) TestOllamaConnection() *TestResultData {
+	result := &TestResultData{}
+
+	if a.gen == nil {
+		result.Error = "LLM generator not initialized"
+		return result
+	}
+
+	client := a.gen.Client()
+
+	// Step 1: Is Ollama reachable?
+	result.Reachable = client.IsAvailable()
+	if !result.Reachable {
+		result.Error = "Cannot reach Ollama at " + client.BaseURL()
+		return result
+	}
+
+	// Step 2: Is the configured model available?
+	models, err := client.ListModels()
+	if err != nil {
+		result.Error = "Failed to list models: " + err.Error()
+		return result
+	}
+
+	for _, m := range models {
+		if strings.Contains(m, client.Model()) || strings.Contains(client.Model(), m) {
+			result.ModelLoaded = true
+			break
+		}
+	}
+	if !result.ModelLoaded {
+		result.Error = "Model " + client.Model() + " not found. Pull it first."
+		return result
+	}
+
+	// Step 3: Test generation
+	_, duration, err := client.TestGenerate(a.ctx)
+	if err != nil {
+		result.Error = "Test generation failed: " + err.Error()
+		return result
+	}
+
+	result.GenerateOK = true
+	result.ResponseTime = int(duration.Milliseconds())
+	return result
 }

@@ -312,6 +312,52 @@ export namespace main {
 	        this.background_id = source["background_id"];
 	    }
 	}
+	export class KnowledgeQuestionData {
+	    sprint_number: number;
+	    sprint_topic: string;
+	    question_num: number;
+	    tier: string;
+	    difficulty: number;
+	    xp: number;
+	    text: string;
+	    code: string;
+	    options: string[];
+	    correct_idx: number;
+	    domain_id: string;
+	    domain_name: string;
+	    hint: string;
+	    explanation: string;
+	    times_answered: number;
+	    times_correct: number;
+	    last_answered?: string;
+	    mastered: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeQuestionData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sprint_number = source["sprint_number"];
+	        this.sprint_topic = source["sprint_topic"];
+	        this.question_num = source["question_num"];
+	        this.tier = source["tier"];
+	        this.difficulty = source["difficulty"];
+	        this.xp = source["xp"];
+	        this.text = source["text"];
+	        this.code = source["code"];
+	        this.options = source["options"];
+	        this.correct_idx = source["correct_idx"];
+	        this.domain_id = source["domain_id"];
+	        this.domain_name = source["domain_name"];
+	        this.hint = source["hint"];
+	        this.explanation = source["explanation"];
+	        this.times_answered = source["times_answered"];
+	        this.times_correct = source["times_correct"];
+	        this.last_answered = source["last_answered"];
+	        this.mastered = source["mastered"];
+	    }
+	}
 	
 	
 	export class QuestionData {
