@@ -36,6 +36,7 @@
   // Voice/typewriter state
   let piperAvailable = false;
   let isSpeaking = false;
+  let speechGeneration = 0;    // Prevents stale .finally() from resetting isSpeaking
   let typewriterText = '';
   let typewriterInterval = null;
   let displayQuestionText = ''; // Just the question text for display
@@ -45,12 +46,41 @@
   let hints = [];
   let explanations = [];
 
+  // Hint tokens (spend during exam)
+  let hintTokens = 0;
+  let usedHints = new Set();     // question numbers already used
+  let revealedHints = {};        // questionNum → hint text
+
+  async function loadHintTokens() {
+    try {
+      const balance = await withTimeout(api.GetHintTokenBalance(), 3000);
+      if (balance) hintTokens = balance.tokens;
+    } catch (err) {
+      console.error('loadHintTokens error:', err);
+    }
+  }
+
+  async function useHint(questionNum) {
+    try {
+      const hintText = await withTimeout(api.UseHintToken(selectedSprint.sprint_number, questionNum), 5000);
+      revealedHints[questionNum] = hintText;
+      revealedHints = revealedHints; // Trigger reactivity
+      usedHints.add(questionNum);
+      usedHints = new Set(usedHints); // Trigger reactivity
+      hintTokens = Math.max(0, hintTokens - 1);
+    } catch (err) {
+      console.error('Use hint error:', err);
+    }
+  }
+
   async function loadProjects() {
     try {
       projects = await withTimeout(api.GetProjects(), 5000) || [];
       // Check if piper is available
       piperAvailable = await withTimeout(api.IsPiperAvailable(), 2000);
       console.log('Piper available:', piperAvailable);
+      // Load hint token balance
+      await loadHintTokens();
     } catch (err) {
       console.error('loadProjects error:', err);
       projects = [];
@@ -90,8 +120,19 @@
     result = null;
     hints = [];
     explanations = [];
+    usedHints = new Set();
+    revealedHints = {};
     typewriterText = '';
     displayQuestionText = '';
+
+    // Load hint token balance and previously used hints
+    await loadHintTokens();
+    try {
+      const used = await withTimeout(api.GetUsedHintsForSprint(sprint.sprint_number), 3000) || [];
+      usedHints = new Set(used);
+    } catch (err) {
+      console.error('GetUsedHintsForSprint error:', err);
+    }
 
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => timeElapsed++, 1000);
@@ -104,14 +145,14 @@
 
   function stopSpeechAndTypewriter() {
     stopTypewriter();
-    if (isSpeaking) {
-      api.StopSpeech().catch(() => {});
-    }
+    // Always send stop — piper-daemon /stop is safe to call even when idle
+    speechGeneration++;
     isSpeaking = false;
+    api.StopSpeech().catch(() => {});
   }
 
   async function speakCurrentQuestion() {
-    // Stop any current speech
+    // Stop any current speech and invalidate stale callbacks
     stopSpeechAndTypewriter();
     typewriterText = '';
     displayQuestionText = '';
@@ -126,12 +167,16 @@
 
     // Start TTS if piper is available
     if (piperAvailable) {
-      console.log('Speaking question:', selectedSprint.sprint_number, currentQuestionIndex);
+      const gen = ++speechGeneration;
       isSpeaking = true;
       api.SpeakQuestion(selectedSprint.sprint_number, currentQuestionIndex)
-        .then(() => console.log('SpeakQuestion completed'))
-        .catch(err => console.error('SpeakQuestion error:', err))
-        .finally(() => { isSpeaking = false; });
+        .catch(err => {
+          if (err?.message !== 'cancelled') console.error('SpeakQuestion error:', err);
+        })
+        .finally(() => {
+          // Only clear if this is still the active speech generation
+          if (gen === speechGeneration) isSpeaking = false;
+        });
     }
   }
 
@@ -210,6 +255,7 @@
   }
 
   async function submitExam() {
+    stopSpeechAndTypewriter();
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
@@ -303,6 +349,16 @@
         nextQuestion();
       }
       e.preventDefault();
+      return;
+    }
+
+    // H for hint
+    if (key === 'H') {
+      const qNum = currentQuestion.number || (currentQuestionIndex + 1);
+      if (hintTokens > 0 && !usedHints.has(qNum) && !revealedHints[qNum]) {
+        useHint(qNum);
+        e.preventDefault();
+      }
       return;
     }
 
@@ -411,7 +467,12 @@
       <div class="exam-title">
         <button class="exit-btn" on:click={backToSelect}>✕</button>
         <h2>Sprint {selectedSprint.sprint_number}: {selectedSprint.topic}</h2>
-        <span class="timer">⏱️ {formatTime(timeElapsed)}</span>
+        <div class="exam-meta">
+          <span class="timer">⏱️ {formatTime(timeElapsed)}</span>
+          {#if hintTokens > 0}
+            <span class="hint-token-badge">💡 {hintTokens}</span>
+          {/if}
+        </div>
       </div>
       <div class="exam-progress">
         <ProgressBar value={progressPercent} />
@@ -450,6 +511,19 @@
               <pre class="code-block"><code>{currentQuestion.code}</code></pre>
             {/if}
           </div>
+
+          <!-- Hint Token: reveal hint on demand -->
+          {@const qNum = currentQuestion.number || (currentQuestionIndex + 1)}
+          {#if revealedHints[qNum]}
+            <div class="active-hint">
+              <span class="active-hint-icon">💡</span>
+              <span>{revealedHints[qNum]}</span>
+            </div>
+          {:else if hintTokens > 0 && !usedHints.has(qNum)}
+            <button class="use-hint-btn" on:click={() => useHint(qNum)}>
+              💡 Use Hint <span class="hint-cost">(1 token · H)</span>
+            </button>
+          {/if}
         </Card>
 
         <!-- Answers Box -->
@@ -1336,5 +1410,71 @@
   .ach-xp {
     color: var(--accent-gold);
     font-size: 13px;
+  }
+
+  /* Hint tokens in exam */
+  .exam-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+  }
+
+  .hint-token-badge {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--primary-900);
+    border: 1px solid var(--primary-600);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-400);
+  }
+
+  .use-hint-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px dashed var(--primary-500);
+    border-radius: var(--radius-md);
+    color: var(--primary-400);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+    margin-top: var(--spacing-md);
+  }
+
+  .use-hint-btn:hover {
+    background: var(--primary-900);
+    border-style: solid;
+  }
+
+  .hint-cost {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .active-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--primary-900);
+    border-left: 3px solid var(--primary-500);
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-md);
+    font-size: 14px;
+    color: var(--primary-300);
+    animation: hintReveal 0.3s ease;
+  }
+
+  .active-hint-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+
+  @keyframes hintReveal {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>

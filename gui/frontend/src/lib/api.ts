@@ -40,6 +40,9 @@ declare global {
                     GetKnowledgeBase: () => Promise<KnowledgeQuestionData[]>;
                     GetKnowledgeByDomain: (domainId: string) => Promise<KnowledgeQuestionData[]>;
                     GetStats: (period: string) => Promise<DailyStatsData[]>;
+                    GetHintTokenBalance: () => Promise<HintTokenData>;
+                    UseHintToken: (sprintNumber: number, questionNumber: number) => Promise<string>;
+                    GetUsedHintsForSprint: (sprintNumber: number) => Promise<number[]>;
                 };
             };
         };
@@ -228,6 +231,11 @@ export interface KnowledgeQuestionData {
     times_correct: number;
     last_answered: string | null;
     mastered: boolean;
+}
+
+export interface HintTokenData {
+    tokens: number;
+    lifetime_tokens: number;
 }
 
 export interface DailyStatsData {
@@ -440,6 +448,25 @@ export async function GetKnowledgeByDomain(domainId: string): Promise<KnowledgeQ
 export async function GetStats(period: string): Promise<DailyStatsData[]> {
     if (isWails()) return window.go!.main!.App!.GetStats(period);
     return httpCall<DailyStatsData[]>('GetStats', period);
+}
+
+// ============================================================================
+// Hint Tokens
+// ============================================================================
+
+export async function GetHintTokenBalance(): Promise<HintTokenData> {
+    if (isWails()) return window.go!.main!.App!.GetHintTokenBalance();
+    return httpCall<HintTokenData>('GetHintTokenBalance');
+}
+
+export async function UseHintToken(sprintNumber: number, questionNumber: number): Promise<string> {
+    if (isWails()) return window.go!.main!.App!.UseHintToken(sprintNumber, questionNumber);
+    return httpCall<string>('UseHintToken', sprintNumber, questionNumber);
+}
+
+export async function GetUsedHintsForSprint(sprintNumber: number): Promise<number[]> {
+    if (isWails()) return window.go!.main!.App!.GetUsedHintsForSprint(sprintNumber);
+    return httpCall<number[]>('GetUsedHintsForSprint', sprintNumber);
 }
 
 // ============================================================================
