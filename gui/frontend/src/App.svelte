@@ -5,8 +5,6 @@
   import Projects from './pages/Projects.svelte';
   import Exams from './pages/Exams.svelte';
   import KnowledgeBase from './pages/KnowledgeBase.svelte';
-  import Review from './pages/Review.svelte';
-  import Stats from './pages/Stats.svelte';
   import Shop from './pages/Shop.svelte';
   import Achievements from './pages/Achievements.svelte';
   import Settings from './pages/Settings.svelte';
@@ -19,8 +17,6 @@
     projects: Projects,
     exams: Exams,
     knowledge: KnowledgeBase,
-    review: Review,
-    stats: Stats,
     shop: Shop,
     achievements: Achievements,
     settings: Settings,
@@ -39,10 +35,8 @@
         case '2': navigate('projects'); e.preventDefault(); break;
         case '3': navigate('exams'); e.preventDefault(); break;
         case '4': navigate('knowledge'); e.preventDefault(); break;
-        case '5': navigate('review'); e.preventDefault(); break;
-        case '6': navigate('stats'); e.preventDefault(); break;
-        case '7': navigate('shop'); e.preventDefault(); break;
-        case '8': navigate('achievements'); e.preventDefault(); break;
+        case '5': navigate('shop'); e.preventDefault(); break;
+        case '6': navigate('achievements'); e.preventDefault(); break;
         case ',': navigate('settings'); e.preventDefault(); break;
       }
     }

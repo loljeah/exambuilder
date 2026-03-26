@@ -72,6 +72,26 @@ cd gui && wails dev      # Development with hot-reload
 cd gui && wails build    # Production build
 ```
 
+### Quick Rebuild & Test (no nixos-rebuild)
+
+Use `scripts/dev-rebuild.sh` for fast iteration without touching your NixOS system config:
+
+```bash
+./scripts/dev-rebuild.sh           # build all, restart daemon
+./scripts/dev-rebuild.sh gui       # build GUI only, launch it
+./scripts/dev-rebuild.sh daemon    # build daemon+CLI only, restart daemon
+./scripts/dev-rebuild.sh all       # build all, restart daemon + launch GUI
+```
+
+Binaries are placed in `build/bin/`. The script handles stopping the old daemon, copying fresh binaries from the nix store, and restarting.
+
+For **hot-reload** frontend development (no rebuild needed):
+
+```bash
+nix develop
+cd gui && wails dev      # auto-reloads on Svelte/Go changes
+```
+
 ### Ollama Setup (for Knowledge Forge)
 
 The Knowledge Forge lets you generate new exam content using a local LLM. Run the guided setup script:

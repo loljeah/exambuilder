@@ -11,10 +11,8 @@
     { id: 'projects', icon: '📁', label: 'Projects', shortcut: '⌘2' },
     { id: 'exams', icon: '📝', label: 'Take Exam', shortcut: '⌘3' },
     { id: 'knowledge', icon: '📚', label: 'Knowledge', shortcut: '⌘4' },
-    { id: 'review', icon: '🔄', label: 'Review', shortcut: '⌘5' },
-    { id: 'stats', icon: '📈', label: 'Statistics', shortcut: '⌘6' },
-    { id: 'shop', icon: '🏪', label: 'Store', shortcut: '⌘7' },
-    { id: 'achievements', icon: '🏆', label: 'Achievements', shortcut: '⌘8' },
+    { id: 'shop', icon: '🏪', label: 'Hints & Forge', shortcut: '⌘5' },
+    { id: 'achievements', icon: '🏆', label: 'Achievements', shortcut: '⌘6' },
     { id: 'settings', icon: '⚙️', label: 'Settings', shortcut: '⌘,' },
   ];
 
@@ -55,7 +53,7 @@
       <span class="status-dot"></span>
       <span>Connected</span>
     </div>
-    <span class="version">v1.0.0</span>
+    <span class="version">v0.3.0</span>
   </div>
 </aside>
 

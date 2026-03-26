@@ -56,7 +56,7 @@ func (s *Server) Start() error {
 	os.Chmod(s.cfg.General.SocketPath, 0700)
 	s.listener = listener
 
-	logging.Info("listening on %s", s.cfg.General.SocketPath)
+	logging.Info("listening", "socket", s.cfg.General.SocketPath)
 
 	for {
 		conn, err := listener.Accept()
@@ -158,16 +158,6 @@ func (s *Server) handleCommand(cmd, args string) string {
 		return s.cmdAvatar(args)
 	case "wallet":
 		return s.cmdWallet()
-	case "shop":
-		return s.cmdShop(args)
-	case "buy":
-		return s.cmdBuy(args)
-	case "inventory":
-		return s.cmdInventory()
-	case "equip":
-		return s.cmdEquip(args)
-	case "unequip":
-		return s.cmdUnequip(args)
 	case "daily":
 		return s.cmdDaily()
 	case "challenges":
@@ -734,107 +724,6 @@ func (s *Server) cmdWallet() string {
 
 	data, _ := json.Marshal(wallet)
 	return "OK " + string(data)
-}
-
-// cmdShop lists shop items, optionally filtered by slot
-func (s *Server) cmdShop(args string) string {
-	sqlDB := s.db.DB
-
-	// Get user level for unlock filtering
-	profile, err := s.db.GetProfile()
-	if err != nil {
-		logging.Info("shop: get profile failed: %v", err)
-		return "ERR internal error"
-	}
-
-	slot := args // empty = all slots
-	items, err := gamification.GetShopItems(sqlDB, slot, profile.Level)
-	if err != nil {
-		logging.Info("shop: get items failed: %v", err)
-		return "ERR internal error"
-	}
-
-	data, _ := json.Marshal(items)
-	return "OK " + string(data)
-}
-
-// cmdBuy purchases an item from the shop
-func (s *Server) cmdBuy(args string) string {
-	if args == "" {
-		return "ERR usage: buy <item_id>"
-	}
-
-	sqlDB := s.db.DB
-
-	// Get user level
-	profile, err := s.db.GetProfile()
-	if err != nil {
-		logging.Info("buy: get profile failed: %v", err)
-		return "ERR internal error"
-	}
-
-	if err := gamification.PurchaseItem(sqlDB, args, profile.Level); err != nil {
-		logging.Info("buy: purchase failed: %v", err)
-		return "ERR " + err.Error()
-	}
-
-	// Log event
-	s.db.LogEvent("item_purchased", nil, nil, map[string]interface{}{
-		"item_id": args,
-	})
-
-	return "OK purchased " + args
-}
-
-// cmdInventory lists owned items
-func (s *Server) cmdInventory() string {
-	sqlDB := s.db.DB
-
-	items, err := gamification.GetOwnedItems(sqlDB)
-	if err != nil {
-		logging.Info("inventory: get failed: %v", err)
-		return "ERR internal error"
-	}
-
-	data, _ := json.Marshal(items)
-	return "OK " + string(data)
-}
-
-// cmdEquip equips an item to its appropriate slot
-func (s *Server) cmdEquip(args string) string {
-	if args == "" {
-		return "ERR usage: equip <item_id>"
-	}
-
-	sqlDB := s.db.DB
-
-	if err := gamification.EquipItem(sqlDB, args); err != nil {
-		logging.Info("equip: failed: %v", err)
-		return "ERR " + err.Error()
-	}
-
-	// Log event
-	s.db.LogEvent("item_equipped", nil, nil, map[string]interface{}{
-		"item_id": args,
-	})
-
-	return "OK equipped " + args
-}
-
-// cmdUnequip removes an item from a slot
-func (s *Server) cmdUnequip(args string) string {
-	if args == "" {
-		return "ERR usage: unequip <hat|held|aura|background>"
-	}
-
-	sqlDB := s.db.DB
-
-	if err := gamification.UnequipSlot(sqlDB, args); err != nil {
-		logging.Info("unequip: failed: %v", err)
-		return "ERR " + err.Error()
-	}
-
-	return "OK unequipped " + args
 }
 
 // cmdDaily handles daily login reward

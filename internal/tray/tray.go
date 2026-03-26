@@ -95,35 +95,39 @@ func (t *Tray) launchGUI() {
 		}
 	}
 
-	// Find GUI binary - check multiple locations
-	guiPaths := []string{
-		// Relative to daemon binary
-		"./kgate-gui",
-		"./gui/build/bin/kgate-gui",
-		// System install paths
-		"/usr/local/bin/kgate-gui",
-		"/usr/bin/kgate-gui",
-	}
+	// Find GUI binary - check PATH first, then known locations
+	guiPath, _ := exec.LookPath("kgate-gui")
 
-	// Add path relative to executable
-	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(exe)
-		guiPaths = append([]string{
-			filepath.Join(dir, "kgate-gui"),
-			filepath.Join(dir, "..", "gui", "build", "bin", "kgate-gui"),
-		}, guiPaths...)
-	}
+	if guiPath == "" {
+		guiPaths := []string{}
 
-	var guiPath string
-	for _, p := range guiPaths {
-		if _, err := os.Stat(p); err == nil {
-			guiPath = p
-			break
+		// Add path relative to executable (nix symlinkJoin, local builds)
+		if exe, err := os.Executable(); err == nil {
+			dir := filepath.Dir(exe)
+			guiPaths = append(guiPaths,
+				filepath.Join(dir, "kgate-gui"),
+				filepath.Join(dir, "..", "gui", "build", "bin", "kgate-gui"),
+			)
+		}
+
+		// Relative to working directory and system paths
+		guiPaths = append(guiPaths,
+			"./kgate-gui",
+			"./gui/build/bin/kgate-gui",
+			"/usr/local/bin/kgate-gui",
+			"/usr/bin/kgate-gui",
+		)
+
+		for _, p := range guiPaths {
+			if _, err := os.Stat(p); err == nil {
+				guiPath = p
+				break
+			}
 		}
 	}
 
 	if guiPath == "" {
-		logging.Error("GUI binary not found", "searched", guiPaths)
+		logging.Error("GUI binary not found in PATH or known locations")
 		return
 	}
 

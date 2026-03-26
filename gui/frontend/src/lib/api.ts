@@ -37,12 +37,6 @@ declare global {
                     ClaimWeeklyGoalReward: (id: number) => Promise<number>;
                     GetAchievements: () => Promise<AchievementData[]>;
                     GetAchievementCounts: () => Promise<[number, number]>;
-                    GetShopItems: (slot: string) => Promise<ShopItemData[]>;
-                    PurchaseItem: (id: string) => Promise<void>;
-                    GetInventory: () => Promise<ShopItemData[]>;
-                    GetEquipped: () => Promise<EquippedData>;
-                    EquipItem: (id: string) => Promise<void>;
-                    UnequipSlot: (slot: string) => Promise<void>;
                     GetKnowledgeBase: () => Promise<KnowledgeQuestionData[]>;
                     GetKnowledgeByDomain: (domainId: string) => Promise<KnowledgeQuestionData[]>;
                     GetStats: (period: string) => Promise<DailyStatsData[]>;
@@ -213,24 +207,6 @@ export interface AchievementData {
     secret: boolean;
     unlocked: boolean;
     unlocked_at: string;
-}
-
-export interface ShopItemData {
-    id: string;
-    name: string;
-    description: string;
-    slot: string;
-    price: number;
-    rarity: string;
-    unlock_level: number;
-    owned: boolean;
-}
-
-export interface EquippedData {
-    hat_id: string;
-    held_id: string;
-    aura_id: string;
-    background_id: string;
 }
 
 export interface KnowledgeQuestionData {
@@ -441,40 +417,6 @@ export async function GetAchievements(): Promise<AchievementData[]> {
 export async function GetAchievementCounts(): Promise<[number, number]> {
     if (isWails()) return window.go!.main!.App!.GetAchievementCounts();
     return httpCall<[number, number]>('GetAchievementCounts');
-}
-
-// ============================================================================
-// Shop & Inventory
-// ============================================================================
-
-export async function GetShopItems(slot: string): Promise<ShopItemData[]> {
-    if (isWails()) return window.go!.main!.App!.GetShopItems(slot);
-    return httpCall<ShopItemData[]>('GetShopItems', slot);
-}
-
-export async function PurchaseItem(id: string): Promise<void> {
-    if (isWails()) return window.go!.main!.App!.PurchaseItem(id);
-    return httpCall<void>('PurchaseItem', id);
-}
-
-export async function GetInventory(): Promise<ShopItemData[]> {
-    if (isWails()) return window.go!.main!.App!.GetInventory();
-    return httpCall<ShopItemData[]>('GetInventory');
-}
-
-export async function GetEquipped(): Promise<EquippedData> {
-    if (isWails()) return window.go!.main!.App!.GetEquipped();
-    return httpCall<EquippedData>('GetEquipped');
-}
-
-export async function EquipItem(id: string): Promise<void> {
-    if (isWails()) return window.go!.main!.App!.EquipItem(id);
-    return httpCall<void>('EquipItem', id);
-}
-
-export async function UnequipSlot(slot: string): Promise<void> {
-    if (isWails()) return window.go!.main!.App!.UnequipSlot(slot);
-    return httpCall<void>('UnequipSlot', slot);
 }
 
 // ============================================================================

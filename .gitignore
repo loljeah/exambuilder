@@ -7,6 +7,28 @@
 /kgate-daemon
 /kgatectl
 
+# Build artifacts
+build/
+result
+result-gui
+
+# Nix
+.direnv/
+
+# GUI build artifacts
+gui/gui
+gui/build/
+gui/frontend/dist/
+gui/frontend/node_modules/
+gui/frontend/wailsjs/
+gui/frontend/package.json.md5
+gui/frontend/public/sprites/__pycache__/
+
+# Proofshot artifacts
+proofshot-artifacts/
+gui/proofshot-artifacts/
+gui/frontend/proofshot-artifacts/
+
 # Secrets (security)
 .env
 *.key

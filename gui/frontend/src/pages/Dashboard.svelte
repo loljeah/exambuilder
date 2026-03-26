@@ -150,18 +150,7 @@
       {/if}
     </Card>
 
-    <!-- Review Due -->
-    <Card title="Review Items">
-      <div class="review-info">
-        <span class="review-count">{data.review_due}</span>
-        <span class="review-label">items due for review</span>
-      </div>
-      {#if data.review_due > 0}
-        <Button>Start Review Session</Button>
-      {:else}
-        <p class="all-clear">All caught up! 🎉</p>
-      {/if}
-    </Card>
+    <!-- Review Due (hidden until Review feature is built) -->
   </div>
 </div>
 

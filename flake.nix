@@ -48,7 +48,8 @@
             inherit version vendorHash;
             src = ./.;
             subPackages = [ "gui" ];
-            tags = [ "webkit2_41" ];
+
+            tags = [ "webkit2_41" "production" ];
 
             nativeBuildInputs = with pkgs; [ pkg-config ];
             buildInputs = with pkgs; [

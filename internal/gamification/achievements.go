@@ -262,17 +262,11 @@ func GatherPlayerStats(db *sql.DB) (*PlayerStats, error) {
 		SELECT COUNT(*) FROM sprints WHERE best_score = 100
 	`).Scan(&stats.PerfectSprints)
 
-	// Inventory count
-	db.QueryRow(`SELECT COUNT(*) FROM inventory`).Scan(&stats.InventoryCount)
-
-	// Equipped slots
-	stats.EquippedSlots = GetEquippedCount(db)
-
-	// Legendary ownership
-	stats.OwnsLegendary = OwnsLegendary(db)
-
-	// Purchase count
-	db.QueryRow(`SELECT COUNT(*) FROM purchase_history`).Scan(&stats.PurchaseCount)
+	// Cosmetic shop disabled — inventory/equipment stats zeroed
+	stats.InventoryCount = 0
+	stats.EquippedSlots = 0
+	stats.OwnsLegendary = false
+	stats.PurchaseCount = 0
 
 	// Hint tokens used
 	db.QueryRow(`SELECT COUNT(*) FROM hint_usage`).Scan(&stats.HintsUsed)
