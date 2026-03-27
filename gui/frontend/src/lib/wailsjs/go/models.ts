@@ -294,22 +294,84 @@ export namespace main {
 	        this.progress_pct = source["progress_pct"];
 	    }
 	}
-	export class EquippedData {
-	    hat_id: string;
-	    held_id: string;
-	    aura_id: string;
-	    background_id: string;
+	export class GenerationGateData {
+	    domain_id: string;
+	    domain_level: number;
+	    can_sprint: boolean;
+	    can_custom: boolean;
+	    can_exam: boolean;
+	    can_challenge: boolean;
+	    first_free_used: boolean;
+	    sprint_cost: number;
+	    custom_cost: number;
+	    exam_cost: number;
+	    challenge_cost: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new EquippedData(source);
+	        return new GenerationGateData(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.hat_id = source["hat_id"];
-	        this.held_id = source["held_id"];
-	        this.aura_id = source["aura_id"];
-	        this.background_id = source["background_id"];
+	        this.domain_id = source["domain_id"];
+	        this.domain_level = source["domain_level"];
+	        this.can_sprint = source["can_sprint"];
+	        this.can_custom = source["can_custom"];
+	        this.can_exam = source["can_exam"];
+	        this.can_challenge = source["can_challenge"];
+	        this.first_free_used = source["first_free_used"];
+	        this.sprint_cost = source["sprint_cost"];
+	        this.custom_cost = source["custom_cost"];
+	        this.exam_cost = source["exam_cost"];
+	        this.challenge_cost = source["challenge_cost"];
+	    }
+	}
+	export class GenerationResultData {
+	    generation_id: number;
+	    sprint_ids: number[];
+	    coins_spent: number;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GenerationResultData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.generation_id = source["generation_id"];
+	        this.sprint_ids = source["sprint_ids"];
+	        this.coins_spent = source["coins_spent"];
+	        this.status = source["status"];
+	    }
+	}
+	export class HintPackData {
+	    tier: string;
+	    tokens: number;
+	    cost: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HintPackData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tier = source["tier"];
+	        this.tokens = source["tokens"];
+	        this.cost = source["cost"];
+	    }
+	}
+	export class HintTokenData {
+	    tokens: number;
+	    lifetime_tokens: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HintTokenData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tokens = source["tokens"];
+	        this.lifetime_tokens = source["lifetime_tokens"];
 	    }
 	}
 	export class KnowledgeQuestionData {
@@ -358,8 +420,46 @@ export namespace main {
 	        this.mastered = source["mastered"];
 	    }
 	}
+	export class OllamaConfigData {
+	    base_url: string;
+	    model: string;
+	    timeout_seconds: number;
+	    max_retries: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OllamaConfigData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.base_url = source["base_url"];
+	        this.model = source["model"];
+	        this.timeout_seconds = source["timeout_seconds"];
+	        this.max_retries = source["max_retries"];
+	    }
+	}
 	
 	
+	export class PullProgressData {
+	    active: boolean;
+	    model: string;
+	    status: string;
+	    percent: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PullProgressData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.active = source["active"];
+	        this.model = source["model"];
+	        this.status = source["status"];
+	        this.percent = source["percent"];
+	        this.error = source["error"];
+	    }
+	}
 	export class QuestionData {
 	    number: number;
 	    tier: string;
@@ -404,32 +504,6 @@ export namespace main {
 	        this.user_answer = source["user_answer"];
 	        this.right_answer = source["right_answer"];
 	        this.xp_earned = source["xp_earned"];
-	    }
-	}
-	export class ShopItemData {
-	    id: string;
-	    name: string;
-	    description: string;
-	    slot: string;
-	    price: number;
-	    rarity: string;
-	    unlock_level: number;
-	    owned: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new ShopItemData(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.description = source["description"];
-	        this.slot = source["slot"];
-	        this.price = source["price"];
-	        this.rarity = source["rarity"];
-	        this.unlock_level = source["unlock_level"];
-	        this.owned = source["owned"];
 	    }
 	}
 	export class SprintData {
@@ -537,6 +611,50 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class SystemInfoData {
+	    gpu_type: string;
+	    gpu_name: string;
+	    vram_gb: number;
+	    ram_gb: number;
+	    rec_model: string;
+	    rec_size: string;
+	    rec_reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SystemInfoData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.gpu_type = source["gpu_type"];
+	        this.gpu_name = source["gpu_name"];
+	        this.vram_gb = source["vram_gb"];
+	        this.ram_gb = source["ram_gb"];
+	        this.rec_model = source["rec_model"];
+	        this.rec_size = source["rec_size"];
+	        this.rec_reason = source["rec_reason"];
+	    }
+	}
+	export class TestResultData {
+	    reachable: boolean;
+	    model_loaded: boolean;
+	    generate_ok: boolean;
+	    response_time_ms: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TestResultData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reachable = source["reachable"];
+	        this.model_loaded = source["model_loaded"];
+	        this.generate_ok = source["generate_ok"];
+	        this.response_time_ms = source["response_time_ms"];
+	        this.error = source["error"];
+	    }
 	}
 	
 	

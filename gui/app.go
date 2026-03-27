@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -19,18 +20,23 @@ import (
 	"github.com/loljeah/exambuilder/internal/gamification"
 	"github.com/loljeah/exambuilder/internal/llm"
 	"github.com/loljeah/exambuilder/internal/voice"
+	"github.com/loljeah/exambuilder/internal/watcher"
 )
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 // App struct holds the application state
 type App struct {
-	ctx    context.Context
-	cfg    *config.Config
-	db     *db.DB
-	sqlDB  *sql.DB
-	voice  *voice.Client
-	gen    *llm.Generator
-	mu     sync.RWMutex // Protects active field
-	active string       // Active project ID
+	ctx     context.Context
+	cfg     *config.Config
+	db      *db.DB
+	sqlDB   *sql.DB
+	voice   *voice.Client
+	gen     *llm.Generator
+	watcher *watcher.Watcher
+	mu      sync.RWMutex // Protects active field
+	active  string       // Active project ID
 
 	pullMu       sync.Mutex
 	pullProgress *PullProgressData
@@ -55,12 +61,11 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize voice client
 	a.voice = voice.NewClient(cfg)
 
-	// Open database
+	// Open database with embedded migrations
 	home, _ := os.UserHomeDir()
 	dbPath := filepath.Join(home, ".local/share/kgate/kgate.db")
-	migrationsDir := filepath.Join(home, ".local/share/kgate/migrations")
 
-	database, err := db.Open(dbPath, migrationsDir)
+	database, err := db.OpenWithEmbeddedMigrations(dbPath, migrationsFS, "migrations")
 	if err != nil {
 		fmt.Println("DB open failed:", err)
 		return
@@ -68,14 +73,35 @@ func (a *App) startup(ctx context.Context) {
 	a.db = database
 	a.sqlDB = database.DB
 
+	// Initialize session tracking
+	database.InitSession("0.4.0")
+
 	// Initialize LLM generator
 	ollamaClient := llm.NewClient(cfg.Ollama.BaseURL, cfg.Ollama.Model, cfg.Ollama.TimeoutSeconds)
 	a.gen = llm.NewGenerator(ollamaClient, a.sqlDB, a.db, cfg.Ollama.MaxRetries)
+
+	// Start file watcher for auto-importing exam files
+	if w, err := watcher.New(cfg, database); err == nil {
+		if err := w.Start(); err != nil {
+			fmt.Println("Watcher start failed:", err)
+		} else {
+			a.watcher = w
+		}
+	} else {
+		fmt.Println("Watcher init failed:", err)
+	}
 }
 
 // shutdown is called when the app closes
 func (a *App) shutdown(ctx context.Context) {
+	// Stop file watcher
+	if a.watcher != nil {
+		a.watcher.Stop()
+	}
+
+	// End session tracking
 	if a.db != nil {
+		a.db.EndSession()
 		a.db.Close()
 	}
 }

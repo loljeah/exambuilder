@@ -10,7 +10,9 @@ export function ClaimDailyReward():Promise<number>;
 
 export function ClaimWeeklyGoalReward(arg1:number):Promise<number>;
 
-export function EquipItem(arg1:string):Promise<void>;
+export function GenerateExamForDomain(arg1:string):Promise<main.GenerationResultData>;
+
+export function GenerateSprintForDomain(arg1:string,arg2:string):Promise<main.GenerationResultData>;
 
 export function GetAchievementCounts():Promise<number|number>;
 
@@ -30,21 +32,27 @@ export function GetDomainAchievements(arg1:string):Promise<Array<main.DomainAchi
 
 export function GetDomains():Promise<Array<main.DomainData>>;
 
-export function GetEquipped():Promise<main.EquippedData>;
+export function GetGenerationGate(arg1:string):Promise<main.GenerationGateData>;
 
-export function GetInventory():Promise<Array<main.ShopItemData>>;
+export function GetHintPacks():Promise<Array<main.HintPackData>>;
+
+export function GetHintTokenBalance():Promise<main.HintTokenData>;
 
 export function GetKnowledgeBase():Promise<Array<main.KnowledgeQuestionData>>;
 
 export function GetKnowledgeByDomain(arg1:string):Promise<Array<main.KnowledgeQuestionData>>;
 
+export function GetOllamaConfig():Promise<main.OllamaConfigData>;
+
+export function GetOllamaModels():Promise<Array<string>>;
+
 export function GetProfile():Promise<main.ProfileData>;
 
 export function GetProjects():Promise<Array<main.ProjectData>>;
 
-export function GetQuestionSpeechText(arg1:number,arg2:number):Promise<string>;
+export function GetPullProgress():Promise<main.PullProgressData>;
 
-export function GetShopItems(arg1:string):Promise<Array<main.ShopItemData>>;
+export function GetQuestionSpeechText(arg1:number,arg2:number):Promise<string>;
 
 export function GetSprintExplanations(arg1:number):Promise<Array<string>>;
 
@@ -56,13 +64,21 @@ export function GetSprints():Promise<Array<main.SprintData>>;
 
 export function GetStats(arg1:string):Promise<Array<main.DailyStatsData>>;
 
+export function GetSystemInfo():Promise<main.SystemInfoData>;
+
+export function GetUsedHintsForSprint(arg1:number):Promise<Array<number>>;
+
 export function GetWallet():Promise<main.WalletData>;
 
 export function GetWeeklyGoals():Promise<Array<main.WeeklyGoalData>>;
 
+export function IsOllamaAvailable():Promise<boolean>;
+
 export function IsPiperAvailable():Promise<boolean>;
 
-export function PurchaseItem(arg1:string):Promise<void>;
+export function PullOllamaModel(arg1:string):Promise<void>;
+
+export function PurchaseHintTokens(arg1:string):Promise<void>;
 
 export function RemoveProject(arg1:string):Promise<void>;
 
@@ -86,4 +102,8 @@ export function StopSpeech():Promise<void>;
 
 export function SubmitSprintAnswers(arg1:number,arg2:Array<string>):Promise<main.SprintResultData>;
 
-export function UnequipSlot(arg1:string):Promise<void>;
+export function TestOllamaConnection():Promise<main.TestResultData>;
+
+export function UpdateOllamaConfig(arg1:string,arg2:string,arg3:number,arg4:number):Promise<void>;
+
+export function UseHintToken(arg1:number,arg2:number):Promise<string>;

@@ -14,8 +14,6 @@
 
         overlays.default = final: prev: {
           kgate = self.packages.${prev.system}.default;
-          kgate-cli = self.packages.${prev.system}.daemon;
-          kgate-gui = self.packages.${prev.system}.gui;
         };
       };
 
@@ -25,7 +23,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
 
           version = "0.3.0";
-          vendorHash = "sha256-fjKOOluDPxtghcfPHDsHfoNhtRuc7nQChZBnYPjRbBU=";
+          vendorHash = "sha256-QyxLhU3iqJL0jSoq1OWBAVbffK0a2IVpYg7sjyZBAFw=";
 
           # ── Stage 1: Build Svelte frontend ──
           kgate-frontend = pkgs.buildNpmPackage {
@@ -43,8 +41,8 @@
           };
 
           # ── Stage 2: Build GUI binary (Go + embedded frontend) ──
-          kgate-gui = pkgs.buildGoModule {
-            pname = "kgate-gui";
+          kgate = pkgs.buildGoModule {
+            pname = "kgate";
             inherit version vendorHash;
             src = ./.;
             subPackages = [ "gui" ];
@@ -67,45 +65,17 @@
 
             # buildGoModule names the binary after the subPackage dir
             postInstall = ''
-              mv $out/bin/gui $out/bin/kgate-gui
+              mv $out/bin/gui $out/bin/kgate
             '';
 
             meta = with pkgs.lib; {
-              description = "Knowledge Gate - GUI (Wails)";
-              license = licenses.mit;
-            };
-          };
-
-          # ── Stage 3: Build daemon + ctl ──
-          kgate-cli = pkgs.buildGoModule {
-            pname = "kgate";
-            inherit version vendorHash;
-            src = ./.;
-            subPackages = [ "cmd/kgate-daemon" "cmd/kgatectl" ];
-
-            nativeBuildInputs = with pkgs; [ pkg-config ];
-            buildInputs = with pkgs; [
-              libayatana-appindicator
-              gtk3
-              glib
-            ];
-
-            meta = with pkgs.lib; {
-              description = "Knowledge Gate - daemon and CLI";
+              description = "Knowledge Gate - Gamified exam system";
               license = licenses.mit;
             };
           };
 
         in {
-          # Combined package: all binaries
-          packages.default = pkgs.symlinkJoin {
-            name = "kgate-${version}";
-            paths = [ kgate-cli kgate-gui ];
-            meta.description = "Knowledge Gate - complete package";
-          };
-
-          packages.daemon = kgate-cli;
-          packages.gui = kgate-gui;
+          packages.default = kgate;
           packages.frontend = kgate-frontend;
 
           devShells.default = pkgs.mkShell {
@@ -117,7 +87,6 @@
               go-tools
               sqlite
               pkg-config
-              libayatana-appindicator
               gtk3
               glib
 
@@ -140,8 +109,6 @@
 
             shellHook = ''
               echo "kgate dev environment (Go + Wails)"
-              echo "  go build ./cmd/kgate-daemon"
-              echo "  go build ./cmd/kgatectl"
               echo "  cd gui && wails dev"
               echo ""
               if command -v ollama &>/dev/null; then

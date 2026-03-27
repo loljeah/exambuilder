@@ -3,7 +3,6 @@ module github.com/loljeah/exambuilder
 go 1.22.0
 
 require (
-	fyne.io/systray v1.11.0
 	github.com/BurntSushi/toml v1.3.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0

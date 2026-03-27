@@ -18,8 +18,12 @@ export function ClaimWeeklyGoalReward(arg1) {
   return window['go']['main']['App']['ClaimWeeklyGoalReward'](arg1);
 }
 
-export function EquipItem(arg1) {
-  return window['go']['main']['App']['EquipItem'](arg1);
+export function GenerateExamForDomain(arg1) {
+  return window['go']['main']['App']['GenerateExamForDomain'](arg1);
+}
+
+export function GenerateSprintForDomain(arg1, arg2) {
+  return window['go']['main']['App']['GenerateSprintForDomain'](arg1, arg2);
 }
 
 export function GetAchievementCounts() {
@@ -58,12 +62,16 @@ export function GetDomains() {
   return window['go']['main']['App']['GetDomains']();
 }
 
-export function GetEquipped() {
-  return window['go']['main']['App']['GetEquipped']();
+export function GetGenerationGate(arg1) {
+  return window['go']['main']['App']['GetGenerationGate'](arg1);
 }
 
-export function GetInventory() {
-  return window['go']['main']['App']['GetInventory']();
+export function GetHintPacks() {
+  return window['go']['main']['App']['GetHintPacks']();
+}
+
+export function GetHintTokenBalance() {
+  return window['go']['main']['App']['GetHintTokenBalance']();
 }
 
 export function GetKnowledgeBase() {
@@ -74,6 +82,14 @@ export function GetKnowledgeByDomain(arg1) {
   return window['go']['main']['App']['GetKnowledgeByDomain'](arg1);
 }
 
+export function GetOllamaConfig() {
+  return window['go']['main']['App']['GetOllamaConfig']();
+}
+
+export function GetOllamaModels() {
+  return window['go']['main']['App']['GetOllamaModels']();
+}
+
 export function GetProfile() {
   return window['go']['main']['App']['GetProfile']();
 }
@@ -82,12 +98,12 @@ export function GetProjects() {
   return window['go']['main']['App']['GetProjects']();
 }
 
-export function GetQuestionSpeechText(arg1, arg2) {
-  return window['go']['main']['App']['GetQuestionSpeechText'](arg1, arg2);
+export function GetPullProgress() {
+  return window['go']['main']['App']['GetPullProgress']();
 }
 
-export function GetShopItems(arg1) {
-  return window['go']['main']['App']['GetShopItems'](arg1);
+export function GetQuestionSpeechText(arg1, arg2) {
+  return window['go']['main']['App']['GetQuestionSpeechText'](arg1, arg2);
 }
 
 export function GetSprintExplanations(arg1) {
@@ -110,6 +126,14 @@ export function GetStats(arg1) {
   return window['go']['main']['App']['GetStats'](arg1);
 }
 
+export function GetSystemInfo() {
+  return window['go']['main']['App']['GetSystemInfo']();
+}
+
+export function GetUsedHintsForSprint(arg1) {
+  return window['go']['main']['App']['GetUsedHintsForSprint'](arg1);
+}
+
 export function GetWallet() {
   return window['go']['main']['App']['GetWallet']();
 }
@@ -118,12 +142,20 @@ export function GetWeeklyGoals() {
   return window['go']['main']['App']['GetWeeklyGoals']();
 }
 
+export function IsOllamaAvailable() {
+  return window['go']['main']['App']['IsOllamaAvailable']();
+}
+
 export function IsPiperAvailable() {
   return window['go']['main']['App']['IsPiperAvailable']();
 }
 
-export function PurchaseItem(arg1) {
-  return window['go']['main']['App']['PurchaseItem'](arg1);
+export function PullOllamaModel(arg1) {
+  return window['go']['main']['App']['PullOllamaModel'](arg1);
+}
+
+export function PurchaseHintTokens(arg1) {
+  return window['go']['main']['App']['PurchaseHintTokens'](arg1);
 }
 
 export function RemoveProject(arg1) {
@@ -170,6 +202,14 @@ export function SubmitSprintAnswers(arg1, arg2) {
   return window['go']['main']['App']['SubmitSprintAnswers'](arg1, arg2);
 }
 
-export function UnequipSlot(arg1) {
-  return window['go']['main']['App']['UnequipSlot'](arg1);
+export function TestOllamaConnection() {
+  return window['go']['main']['App']['TestOllamaConnection']();
+}
+
+export function UpdateOllamaConfig(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UpdateOllamaConfig'](arg1, arg2, arg3, arg4);
+}
+
+export function UseHintToken(arg1, arg2) {
+  return window['go']['main']['App']['UseHintToken'](arg1, arg2);
 }

@@ -38,3 +38,6 @@ gui/frontend/proofshot-artifacts/
 *_secret*
 *.credentials
 config.toml
+vendor/
+result-daemon/
+result/
